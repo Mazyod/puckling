@@ -9,25 +9,31 @@ Augments the base AR Time ruleset with:
 Foundation rules already cover relative days, weekdays, months, written dates
 and HH:MM clock times. This file is a pure addition — it does not redefine
 any rule from `rules.py`.
+
+Cross-dimension dependencies are avoided so that callers passing `dims=("time",)`
+to `parse()` still see these rules fire — the registry only loads rules from
+the requested dimensions, so an `is_ordinal` predicate would silently fail when
+the ordinal dimension is not part of `dims`. Ordinal day-of-month stems are
+therefore matched directly via regex.
 """
 
 from __future__ import annotations
 
+import datetime as dt
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from puckling.dimensions.numeral.helpers import parse_arabic_int
-from puckling.dimensions.ordinal.types import OrdinalValue
 from puckling.dimensions.time.ar._helpers import WrappedTimeData
 from puckling.dimensions.time.grain import Grain
 from puckling.dimensions.time.helpers import (
     at_day_of_month,
     at_month,
-    at_year,
     intersect,
+    pinned_instant,
     time,
 )
 from puckling.dimensions.time.types import TimeData
-from puckling.predicates import is_ordinal, is_time
 from puckling.types import RegexMatch, Rule, Token, predicate, regex
 
 # ---------------------------------------------------------------------------
@@ -50,13 +56,36 @@ def _instant_part(d: dict) -> dict:
     return {"value": d["value"], "grain": d["grain"]}
 
 
-@dataclass(frozen=True, slots=True)
-class IntervalCompound:
+class _SpanIdentityMixin:
+    """Span-based equality for interval value objects.
+
+    The base AR ruleset re-derives `WrappedTimeData` instances every iteration
+    (TimeData wraps a fresh closure each firing), so values that are
+    structurally equivalent compare unequal under default dataclass equality.
+    Anchoring identity on the source span (plus the concrete subclass) collapses
+    those equivalents to one parse-forest entry and prevents the engine from
+    saturating exponentially.
+    """
+
+    __slots__ = ()
+    span: object
+    grain: Grain
+
+    def __eq__(self, other: object) -> bool:
+        return type(self) is type(other) and self.span == other.span and self.grain == other.grain
+
+    def __hash__(self) -> int:
+        return hash((type(self).__name__, self.span, self.grain))
+
+
+@dataclass(frozen=True, slots=True, eq=False)
+class IntervalCompound(_SpanIdentityMixin):
     """A closed interval built from two child time-token values."""
 
     left: object
     right: object
     grain: Grain
+    span: tuple[tuple[int, int], tuple[int, int]]
     latent: bool = False
 
     def resolve(self, context) -> dict:
@@ -71,12 +100,13 @@ class IntervalCompound:
         }
 
 
-@dataclass(frozen=True, slots=True)
-class OpenIntervalBefore:
+@dataclass(frozen=True, slots=True, eq=False)
+class OpenIntervalBefore(_SpanIdentityMixin):
     """An interval bounded above by a single time value (e.g. "قبل/حتى X")."""
 
     bound: object
     grain: Grain
+    span: tuple[int, int]
     latent: bool = False
 
     def resolve(self, context) -> dict:
@@ -86,12 +116,13 @@ class OpenIntervalBefore:
         return {"type": "interval", "to": _instant_part(d)}
 
 
-@dataclass(frozen=True, slots=True)
-class OpenIntervalAfter:
+@dataclass(frozen=True, slots=True, eq=False)
+class OpenIntervalAfter(_SpanIdentityMixin):
     """An interval bounded below by a single time value (e.g. "بعد/منذ X")."""
 
     bound: object
     grain: Grain
+    span: tuple[int, int]
     latent: bool = False
 
     def resolve(self, context) -> dict:
@@ -102,7 +133,7 @@ class OpenIntervalAfter:
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Generic helpers
 
 
 def _t(td: TimeData) -> Token:
@@ -116,6 +147,22 @@ def _v(value) -> Token:
 def _grain_of(t: Token) -> Grain | None:
     g = getattr(t.value, "grain", None)
     return g if isinstance(g, Grain) else None
+
+
+def _is_instant_time(t: Token) -> bool:
+    """Time tokens that do NOT already wrap an interval — used to anchor
+    interval-building rules so they don't recursively consume their own output.
+
+    Without this guard, "من X الى Y" produces an interval token that becomes
+    eligible as `<X>` for another "من ... الى ..." rule, which combines with
+    overlapping numeral/month tokens and saturates the engine in pathological
+    ways for inputs containing numeric day-of-month plus a month name.
+    """
+    if t.dim != "time":
+        return False
+    return not isinstance(
+        t.value, (IntervalCompound, OpenIntervalBefore, OpenIntervalAfter)
+    )
 
 
 def _finer_grain(a: Token, b: Token) -> Grain:
@@ -134,31 +181,37 @@ def _finer_grain(a: Token, b: Token) -> Grain:
 # Interval productions
 
 
-def _prod_between_and(tokens: tuple[Token, ...]) -> Token | None:
+def _span(t: Token) -> tuple[int, int]:
+    return (t.range.start, t.range.end)
+
+
+def _prod_closed_interval(tokens: tuple[Token, ...]) -> Token | None:
+    """Build a closed interval from `<connector> <X> <connector> <Y>`.
+
+    Both `بين X و Y` and `من X (الى|حتى|...) Y` share this shape — the time
+    operands sit at indices 1 and 3.
+    """
     a, b = tokens[1], tokens[3]
-    return _v(IntervalCompound(left=a.value, right=b.value, grain=_finer_grain(a, b)))
-
-
-def _prod_from_to(tokens: tuple[Token, ...]) -> Token | None:
-    a, b = tokens[1], tokens[3]
-    return _v(IntervalCompound(left=a.value, right=b.value, grain=_finer_grain(a, b)))
-
-
-def _prod_dash(tokens: tuple[Token, ...]) -> Token | None:
-    a, b = tokens[0], tokens[2]
-    return _v(IntervalCompound(left=a.value, right=b.value, grain=_finer_grain(a, b)))
+    return _v(
+        IntervalCompound(
+            left=a.value,
+            right=b.value,
+            grain=_finer_grain(a, b),
+            span=(_span(a), _span(b)),
+        )
+    )
 
 
 def _prod_until(tokens: tuple[Token, ...]) -> Token | None:
     inner = tokens[1]
     grain = _grain_of(inner) or Grain.DAY
-    return _v(OpenIntervalBefore(bound=inner.value, grain=grain))
+    return _v(OpenIntervalBefore(bound=inner.value, grain=grain, span=_span(inner)))
 
 
 def _prod_after(tokens: tuple[Token, ...]) -> Token | None:
     inner = tokens[1]
     grain = _grain_of(inner) or Grain.DAY
-    return _v(OpenIntervalAfter(bound=inner.value, grain=grain))
+    return _v(OpenIntervalAfter(bound=inner.value, grain=grain, span=_span(inner)))
 
 
 # ---------------------------------------------------------------------------
@@ -177,6 +230,7 @@ def _captured(tokens: tuple[Token, ...], index: int) -> str | None:
 
 
 def _prod_dd_mm(tokens: tuple[Token, ...]) -> Token | None:
+    """DD/MM with the current reference year filled in."""
     dd = _captured(tokens, 0)
     mm = _captured(tokens, 1)
     if dd is None or mm is None:
@@ -187,56 +241,119 @@ def _prod_dd_mm(tokens: tuple[Token, ...]) -> Token | None:
         return None
     if not (1 <= d <= 31 and 1 <= m <= 12):
         return None
+    # No year specified → leave the predicate to find the next matching day
+    # within Duckling's 5-year scan window from the reference time.
     return _t(time(intersect(at_month(m), at_day_of_month(d)), Grain.DAY))
 
 
-def _prod_dd_mm_yyyy(tokens: tuple[Token, ...]) -> Token | None:
-    dd = _captured(tokens, 0)
-    mm = _captured(tokens, 1)
-    yy = _captured(tokens, 2)
-    if dd is None or mm is None or yy is None:
-        return None
+def _build_pinned_day(y: int, m: int, d: int) -> Token | None:
     try:
-        d, m, y = parse_arabic_int(dd), parse_arabic_int(mm), parse_arabic_int(yy)
+        moment = dt.datetime(y, m, d, tzinfo=dt.UTC)
     except ValueError:
         return None
-    if not (1 <= d <= 31 and 1 <= m <= 12):
-        return None
-    if y < 100:
-        # Two-digit year: treat as 20xx (mirrors Duckling's permissive parsing).
-        y += 2000
-    return _t(
-        time(
-            intersect(at_year(y), at_month(m), at_day_of_month(d)),
-            Grain.DAY,
-        )
-    )
+    return _t(pinned_instant(moment, Grain.DAY))
 
 
-def _prod_yyyy_mm_dd(tokens: tuple[Token, ...]) -> Token | None:
-    yy = _captured(tokens, 0)
-    mm = _captured(tokens, 1)
-    dd = _captured(tokens, 2)
-    if yy is None or mm is None or dd is None:
-        return None
-    try:
-        y, m, d = parse_arabic_int(yy), parse_arabic_int(mm), parse_arabic_int(dd)
-    except ValueError:
-        return None
-    if not (1 <= d <= 31 and 1 <= m <= 12):
-        return None
-    if y < 100:
-        y += 2000
-    return _t(
-        time(
-            intersect(at_year(y), at_month(m), at_day_of_month(d)),
-            Grain.DAY,
-        )
-    )
+def _build_ymd_prod(
+    *, dd_idx: int, mm_idx: int, yy_idx: int
+) -> Callable[[tuple[Token, ...]], Token | None]:
+    """Production factory for date forms with explicit year, parameterised by
+    which capture group holds each component."""
+
+    def go(tokens: tuple[Token, ...]) -> Token | None:
+        dd = _captured(tokens, dd_idx)
+        mm = _captured(tokens, mm_idx)
+        yy = _captured(tokens, yy_idx)
+        if dd is None or mm is None or yy is None:
+            return None
+        try:
+            d, m, y = parse_arabic_int(dd), parse_arabic_int(mm), parse_arabic_int(yy)
+        except ValueError:
+            return None
+        if not (1 <= d <= 31 and 1 <= m <= 12):
+            return None
+        if y < 100:
+            # Two-digit year: treat as 20xx (mirrors Duckling's permissive parsing).
+            y += 2000
+        return _build_pinned_day(y, m, d)
+
+    return go
+
+
+_prod_dd_mm_yyyy = _build_ymd_prod(dd_idx=0, mm_idx=1, yy_idx=2)
+_prod_yyyy_mm_dd = _build_ymd_prod(dd_idx=2, mm_idx=1, yy_idx=0)
 
 
 # ---------------------------------------------------------------------------
 # Ordinal-day-of-month + month: "الأول من ابريل", "الرابع من نيسان".
+#
+# We avoid an `is_ordinal` cross-dim predicate so this rule still fires when
+# only the time dimension is loaded. Arabic ordinal stems are matched as part
+# of the rule's leading regex.
+
+# Stem → integer for ordinals 1..19 and feminine variants. We only need values
+# that can plausibly be a day-of-month (1..31) here.
+_ORDINAL_STEM_TO_INT: dict[str, int] = {
+    "الاول": 1,
+    "الأول": 1,
+    "الأولى": 1,
+    "الاولى": 1,
+    "الحادي": 1,
+    "الثاني": 2,
+    "الثانية": 2,
+    "الثان": 2,
+    "الثالث": 3,
+    "الثالثة": 3,
+    "الرابع": 4,
+    "الرابعة": 4,
+    "الخامس": 5,
+    "الخامسة": 5,
+    "السادس": 6,
+    "السادسة": 6,
+    "السابع": 7,
+    "السابعة": 7,
+    "الثامن": 8,
+    "الثامنة": 8,
+    "التاسع": 9,
+    "التاسعة": 9,
+    "العاشر": 10,
+    "العاشرة": 10,
+}
+
+# "Teen" stems: each is paired with "عشر" / "عشرة" → +10.
+_ORDINAL_TEEN_TO_INT: dict[str, int] = {
+    "الحادي": 11,
+    "الإحدى": 11,
+    "الاحدى": 11,
+    "الحادية": 11,
+    "الثاني": 12,
+    "الثانية": 12,
+    "الاثنى": 12,
+    "الثان": 12,
+    "الثالث": 13,
+    "الثالثة": 13,
+    "الرابع": 14,
+    "الرابعة": 14,
+    "الخامس": 15,
+    "الخامسة": 15,
+    "السادس": 16,
+    "السادسة": 16,
+    "السابع": 17,
+    "السابعة": 17,
+    "الثامن": 18,
+    "الثامنة": 18,
+    "التاسع": 19,
+    "التاسعة": 19,
+}
+
+# Combined regex alternation for ordinal stems, longest first (so "الثالثة"
+# binds before "الثالث" inside the regex engine).
+_ORDINAL_RE = (
+    r"(الأولى|الاولى|الإحدى|الاحدى|الحادية|الثانية|الثالثة|الرابعة|الخامسة|السادسة"
+    r"|السابعة|الثامنة|التاسعة|العاشرة|الأول|الاول|الحادي|الثاني|الثان|الاثنى"
+    r"|الثالث|الرابع|الخامس|السادس|السابع|الثامن|التاسع|العاشر)"
+)
+_TEEN_SUFFIX = r"\s+عشرة?"
 
 
 def _is_month_token(t: Token) -> bool:
@@ -254,31 +371,29 @@ def _unwrap(value) -> TimeData | None:
     return None
 
 
-def _ordinal_int(t: Token) -> int | None:
-    if t.dim != "ordinal":
-        return None
-    val = t.value
-    if not isinstance(val, OrdinalValue):
-        return None
-    return val.value if 1 <= val.value <= 31 else None
+def _build_ordinal_dom_prod(
+    table: dict[str, int],
+) -> Callable[[tuple[Token, ...]], Token | None]:
+    """Production factory: look up an ordinal stem in `table`, intersect with a
+    trailing month token, and emit a day-grained `TimeData`."""
+
+    def go(tokens: tuple[Token, ...]) -> Token | None:
+        stem = _captured(tokens, 0)
+        if stem is None:
+            return None
+        n = table.get(stem)
+        if n is None:
+            return None
+        month_td = _unwrap(tokens[-1].value)
+        if month_td is None:
+            return None
+        return _t(time(intersect(month_td.predicate, at_day_of_month(n)), Grain.DAY))
+
+    return go
 
 
-def _prod_ordinal_of_month(tokens: tuple[Token, ...]) -> Token | None:
-    # tokens: <ordinal> <regex "من"> <month-time>
-    day = _ordinal_int(tokens[0])
-    month_td = _unwrap(tokens[-1].value)
-    if day is None or month_td is None:
-        return None
-    return _t(time(intersect(month_td.predicate, at_day_of_month(day)), Grain.DAY))
-
-
-def _prod_ordinal_day_of_month(tokens: tuple[Token, ...]) -> Token | None:
-    # "اليوم الأول من ابريل" — "اليوم" + ordinal + "من" + month.
-    day = _ordinal_int(tokens[1])
-    month_td = _unwrap(tokens[-1].value)
-    if day is None or month_td is None:
-        return None
-    return _t(time(intersect(month_td.predicate, at_day_of_month(day)), Grain.DAY))
+_prod_ordinal_of_month = _build_ordinal_dom_prod(_ORDINAL_STEM_TO_INT)
+_prod_ordinal_teen_of_month = _build_ordinal_dom_prod(_ORDINAL_TEEN_TO_INT)
 
 
 # ---------------------------------------------------------------------------
@@ -289,9 +404,8 @@ _MM = r"(1[0-2]|0?[1-9]|[٠-٩]{1,2})"
 _YY = r"([0-9٠-٩]{2,4})"
 _YYYY = r"([0-9٠-٩]{4})"
 
-# "إلى" / "الى" / "حتى" / "-" — closed-interval connector.
+# "إلى" / "الى" / "حتى" / "-" — closed-interval connector after "من".
 _INTERVAL_CONNECT = r"(?:و\s?)?(?:\-|[إا]لى|حتى|لـ?)"
-_INTERVAL_TO = r"[إا]لى|حتى"
 
 RULES: tuple[Rule, ...] = (
     # Closed intervals -------------------------------------------------------
@@ -299,40 +413,37 @@ RULES: tuple[Rule, ...] = (
         name="between <X> and <Y>",
         pattern=(
             regex(r"بين"),
-            predicate(is_time, "is_time"),
+            predicate(_is_instant_time, "is_instant_time"),
             regex(r"و"),
-            predicate(is_time, "is_time"),
+            predicate(_is_instant_time, "is_instant_time"),
         ),
-        prod=_prod_between_and,
+        prod=_prod_closed_interval,
     ),
     Rule(
         name="from <X> to <Y>",
         pattern=(
             regex(r"من"),
-            predicate(is_time, "is_time"),
+            predicate(_is_instant_time, "is_instant_time"),
             regex(_INTERVAL_CONNECT),
-            predicate(is_time, "is_time"),
+            predicate(_is_instant_time, "is_instant_time"),
         ),
-        prod=_prod_from_to,
-    ),
-    Rule(
-        name="<X> to <Y> (dash / إلى / حتى)",
-        pattern=(
-            predicate(is_time, "is_time"),
-            regex(r"\-|" + _INTERVAL_TO),
-            predicate(is_time, "is_time"),
-        ),
-        prod=_prod_dash,
+        prod=_prod_closed_interval,
     ),
     # Open intervals ---------------------------------------------------------
     Rule(
         name="until <X>",
-        pattern=(regex(r"قبل|حتى|[إا]لى"), predicate(is_time, "is_time")),
+        pattern=(
+            regex(r"قبل|حتى|[إا]لى"),
+            predicate(_is_instant_time, "is_instant_time"),
+        ),
         prod=_prod_until,
     ),
     Rule(
         name="after <X>",
-        pattern=(regex(r"بعد|منذ"), predicate(is_time, "is_time")),
+        pattern=(
+            regex(r"بعد|منذ"),
+            predicate(_is_instant_time, "is_instant_time"),
+        ),
         prod=_prod_after,
     ),
     # Numeric date forms -----------------------------------------------------
@@ -357,23 +468,20 @@ RULES: tuple[Rule, ...] = (
     ),
     # Ordinal day-of-month + month ------------------------------------------
     Rule(
+        name="<ordinal-teen> عشر من <month>",
+        pattern=(
+            regex(_ORDINAL_RE + _TEEN_SUFFIX + r"\s+من(?:\s+شهر)?"),
+            predicate(_is_month_token, "is_month_time"),
+        ),
+        prod=_prod_ordinal_teen_of_month,
+    ),
+    Rule(
         name="<ordinal-dom> من <month>",
         pattern=(
-            predicate(is_ordinal, "is_ordinal"),
-            regex(r"من(?:\s+شهر)?"),
+            regex(_ORDINAL_RE + r"\s+من(?:\s+شهر)?"),
             predicate(_is_month_token, "is_month_time"),
         ),
         prod=_prod_ordinal_of_month,
-    ),
-    Rule(
-        name="اليوم <ordinal-dom> من <month>",
-        pattern=(
-            regex(r"اليوم"),
-            predicate(is_ordinal, "is_ordinal"),
-            regex(r"من(?:\s+شهر)?"),
-            predicate(_is_month_token, "is_month_time"),
-        ),
-        prod=_prod_ordinal_day_of_month,
     ),
     # TODO(puckling): edge case — "بين الساعة 3 و الساعة 4 بعد العصر" with
     # absorbed "الساعة" / "بعد الظهر" markers (requires AM/PM modifier rules
