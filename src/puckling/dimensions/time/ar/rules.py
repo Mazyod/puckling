@@ -37,9 +37,13 @@ from puckling.types import Rule, Token, predicate, regex
 # Helpers internal to this module.
 
 
-def _t(td: TimeData) -> Token:
-    """Wrap a foundation `TimeData` so `resolve()` produces the corpus-shaped dict."""
-    return Token(dim="time", value=WrappedTimeData(inner=td))
+def _t(td: TimeData, *, key: tuple = ()) -> Token:
+    """Wrap a foundation `TimeData` so `resolve()` produces the corpus-shaped dict.
+
+    `key` is a stable semantic identifier; rules supply one so the engine can
+    dedupe equivalent tokens despite TimeData's per-firing closure identity.
+    """
+    return Token(dim="time", value=WrappedTimeData(inner=td, key=key))
 
 
 def _v(value) -> Token:
@@ -115,7 +119,7 @@ _DAYS_OF_WEEK: tuple[tuple[str, str, int], ...] = (
 
 def _make_dow_rule(name: str, pattern: str, weekday: int) -> Rule:
     def prod(_: tuple[Token, ...]) -> Token:
-        return _t(_day_of_week(weekday))
+        return _t(_day_of_week(weekday), key=("dow", weekday))
 
     return Rule(name=f"day-of-week:{name}", pattern=(regex(pattern),), prod=prod)
 
@@ -141,7 +145,7 @@ _MONTHS: tuple[tuple[str, str, int], ...] = (
 
 def _make_month_rule(name: str, pattern: str, m: int) -> Rule:
     def prod(_: tuple[Token, ...]) -> Token:
-        return _t(time(at_month(m), Grain.MONTH))
+        return _t(time(at_month(m), Grain.MONTH), key=("month", m))
 
     return Rule(name=f"month:{name}", pattern=(regex(pattern),), prod=prod)
 
@@ -172,11 +176,13 @@ def _prod_dom_month(matched: tuple[Token, ...]) -> Token | None:
     month_td = _unwrap(matched[-1].value)
     if month_td is None:
         return None
+    month_key = getattr(matched[-1].value, "key", ()) or ("month_inner", id(month_td))
     return _t(
         time(
             intersect(month_td.predicate, at_day_of_month(day)),
             Grain.DAY,
-        )
+        ),
+        key=("dom_month", day, month_key),
     )
 
 
@@ -198,7 +204,8 @@ def _prod_hh_mm(matched: tuple[Token, ...]) -> Token | None:
 
 def _prod_year(matched: tuple[Token, ...]) -> Token:
     # Regex restricts to four ASCII digits in the 1000-2999 range.
-    return _t(time(at_year(int(matched[0].value.text)), Grain.YEAR))
+    y = int(matched[0].value.text)
+    return _t(time(at_year(y), Grain.YEAR), key=("year", y))
 
 
 # ---------------------------------------------------------------------------

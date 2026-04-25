@@ -108,7 +108,7 @@ _rule_numeral_celsius_explicit = Rule(
     name="<numeral> درجة مئوية",
     pattern=(
         predicate(is_numeral, "is_numeral"),
-        regex(r"درجة\s+مئوية|°?\s*س"),
+        regex(r"درجة\s+مئوية|°\s*س\b"),
     ),
     prod=_with_unit(TemperatureUnit.CELSIUS),
 )

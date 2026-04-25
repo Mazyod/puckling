@@ -18,16 +18,24 @@ from puckling.dimensions.time.helpers import resolve_time_data
 from puckling.dimensions.time.types import InstantValue, TimeData, TimeValue
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, eq=False)
 class WrappedTimeData:
     """Foundation `TimeData` wrapped so `resolve()` produces a full `TimeValue` dict.
 
     Foundation `TimeData.resolve` returns the raw `InstantValue.to_dict()`, which
     lacks the top-level `type: value` key the AR corpus expects. Tokens emitted
     by AR rules wrap their `TimeData` in this class instead.
+
+    `key` is a stable identifier supplied by the rule that produced this token.
+    Equality and hashing key off `(key, grain, latent, holiday)` — never the
+    inner `TimeData.predicate`, whose closure identity is fresh on every rule
+    firing and would otherwise prevent the engine from deduping structurally
+    equivalent tokens. Rules that omit a key fall back to closure-identity
+    equality (legacy behaviour), which is safe but does not dedupe.
     """
 
     inner: TimeData
+    key: tuple = ()
 
     @property
     def grain(self) -> Grain:
@@ -36,6 +44,24 @@ class WrappedTimeData:
     @property
     def latent(self) -> bool:
         return self.inner.latent
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, WrappedTimeData):
+            return False
+        if self.key and other.key:
+            return (
+                self.key == other.key
+                and self.inner.grain == other.inner.grain
+                and self.inner.latent == other.inner.latent
+                and self.inner.holiday == other.inner.holiday
+            )
+        # Fallback when either side is unkeyed: closure identity.
+        return self.inner is other.inner
+
+    def __hash__(self) -> int:
+        if self.key:
+            return hash((self.key, self.inner.grain, self.inner.latent, self.inner.holiday))
+        return id(self.inner)
 
     def resolve(self, context) -> dict:
         instant = resolve_time_data(self.inner, context.reference_time)

@@ -136,8 +136,8 @@ class OpenIntervalAfter(_SpanIdentityMixin):
 # Generic helpers
 
 
-def _t(td: TimeData) -> Token:
-    return Token(dim="time", value=WrappedTimeData(inner=td))
+def _t(td: TimeData, *, key: tuple = ()) -> Token:
+    return Token(dim="time", value=WrappedTimeData(inner=td, key=key))
 
 
 def _v(value) -> Token:
@@ -243,7 +243,10 @@ def _prod_dd_mm(tokens: tuple[Token, ...]) -> Token | None:
         return None
     # No year specified → leave the predicate to find the next matching day
     # within Duckling's 5-year scan window from the reference time.
-    return _t(time(intersect(at_month(m), at_day_of_month(d)), Grain.DAY))
+    return _t(
+        time(intersect(at_month(m), at_day_of_month(d)), Grain.DAY),
+        key=("dd_mm", d, m),
+    )
 
 
 def _build_pinned_day(y: int, m: int, d: int) -> Token | None:
@@ -251,7 +254,7 @@ def _build_pinned_day(y: int, m: int, d: int) -> Token | None:
         moment = dt.datetime(y, m, d, tzinfo=dt.UTC)
     except ValueError:
         return None
-    return _t(pinned_instant(moment, Grain.DAY))
+    return _t(pinned_instant(moment, Grain.DAY), key=("pinned_day", y, m, d))
 
 
 def _build_ymd_prod(
@@ -387,7 +390,11 @@ def _build_ordinal_dom_prod(
         month_td = _unwrap(tokens[-1].value)
         if month_td is None:
             return None
-        return _t(time(intersect(month_td.predicate, at_day_of_month(n)), Grain.DAY))
+        month_key = getattr(tokens[-1].value, "key", ()) or ("month_inner", id(month_td))
+        return _t(
+            time(intersect(month_td.predicate, at_day_of_month(n)), Grain.DAY),
+            key=("ord_dom", n, month_key),
+        )
 
     return go
 

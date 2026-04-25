@@ -69,7 +69,7 @@ RULES: tuple[Rule, ...] = (
     _distance_rule("<n> كيلومتر", DistanceUnit.KILOMETRE, r"كيلو ?متر(ات)?|كم"),
     _distance_rule("<n> سنتيمتر", DistanceUnit.CENTIMETRE, r"سنتي? ?متر(ات)?|سم"),
     _distance_rule("<n> ميليمتر", DistanceUnit.MILLIMETRE, r"مي?لي? ?متر(ات)?|مم"),
-    _distance_rule("<n> متر", DistanceUnit.METRE, r"أمتار|متر(ات)?|م"),
+    _distance_rule("<n> متر", DistanceUnit.METRE, r"أمتار|متر(ات)?|م\b"),
     _distance_rule("<n> ميل", DistanceUnit.MILE, r"أميال|ميل|ميول"),
     _distance_rule("<n> ياردة", DistanceUnit.YARD, r"ياردات|يارد[ةه]?"),
     _distance_rule("<n> قدم", DistanceUnit.FOOT, r"أقدام|قدم"),

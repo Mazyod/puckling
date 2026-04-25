@@ -71,7 +71,7 @@ def is_positive(t: Token) -> bool:
     if t.dim != "numeral":
         return False
     v = getattr(t.value, "value", None)
-    return isinstance(v, (int, float)) and v > 0
+    return isinstance(v, (int, float)) and v >= 0
 
 
 def is_integer(t: Token) -> bool:

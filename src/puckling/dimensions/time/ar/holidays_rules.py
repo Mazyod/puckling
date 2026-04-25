@@ -51,8 +51,8 @@ from puckling.types import Rule, Token, regex
 # imports each `*_rules.py` independently and those helpers are private there.
 
 
-def _t(td: TimeData) -> Token:
-    return Token(dim="time", value=WrappedTimeData(inner=td))
+def _t(td: TimeData, *, key: tuple = ()) -> Token:
+    return Token(dim="time", value=WrappedTimeData(inner=td, key=key))
 
 
 def _v(value) -> Token:
@@ -196,7 +196,7 @@ def _part_of_day_rule(name: str, pattern: str, start_h: int, end_h: int) -> Rule
 
 def _fixed_holiday_rule(name: str, pattern: str, month: int, day: int) -> Rule:
     def prod(_: tuple[Token, ...]) -> Token:
-        return _t(fixed_holiday(month, day, name))
+        return _t(fixed_holiday(month, day, name), key=("fixed_holiday", name, month, day))
 
     return Rule(name=f"holiday:{name}", pattern=(regex(pattern),), prod=prod)
 
@@ -215,7 +215,7 @@ def _easter_holiday_rule(name: str, pattern: str) -> Rule:
     predicate (resolver walks forward to the next matching day)."""
 
     def prod(_: tuple[Token, ...]) -> Token:
-        return _t(computed_holiday(name, easter))
+        return _t(computed_holiday(name, easter), key=("computed_holiday", name))
 
     return Rule(name=f"holiday:{name}", pattern=(regex(pattern),), prod=prod)
 
@@ -320,7 +320,8 @@ def _every_dow_rule(name: str, dow_pattern: str, weekday: int) -> Rule:
                 predicate=at_day_of_week(weekday),
                 grain=Grain.DAY,
                 not_immediate=True,
-            )
+            ),
+            key=("every_dow", weekday),
         )
 
     return Rule(name=f"every {name}", pattern=(regex(pat),), prod=prod)
