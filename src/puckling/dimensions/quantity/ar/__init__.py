@@ -1,0 +1,1 @@
+"""Quantity dimension — Arabic locale."""
