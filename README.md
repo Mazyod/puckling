@@ -7,8 +7,7 @@
 
 _A Python port of [Facebook Duckling](https://github.com/facebook/duckling), scoped to **English and Arabic**._
 
-<!-- TODO: replace with uploaded image URL from GitHub user-attachments -->
-<!-- <img width="1423" height="551" alt="puckling-splash" src="https://github.com/user-attachments/assets/REPLACE-ME" /> -->
+<img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/65c45b28-fa7c-4492-a764-abea8ef9edec" />
 
 __Puckling__ parses natural-language English and Arabic into structured values: numbers, ordinals, dates, durations, distances, temperatures, money, emails, URLs, phone numbers, and more.
 
