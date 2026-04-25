@@ -1,0 +1,48 @@
+[project]
+name = "puckling"
+version = "0.1.0"
+description = "A Python port of Facebook's Duckling: parse natural-language English and Arabic into structured numbers, dates, durations, money, and more."
+readme = "README.md"
+requires-python = ">=3.13"
+license = { text = "Apache-2.0" }
+keywords = ["nlp", "parsing", "duckling", "arabic", "english", "dates", "numbers"]
+authors = [{ name = "Puckling contributors" }]
+dependencies = [
+    "regex>=2024.5.15",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-xdist>=3.5",
+    "ruff>=0.6",
+    "pyright>=1.1.380",
+]
+
+[project.urls]
+Homepage = "https://github.com/facebook/duckling"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/puckling"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+filterwarnings = ["error"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.pyright]
+pythonVersion = "3.13"
+include = ["src", "tests"]
+typeCheckingMode = "standard"
