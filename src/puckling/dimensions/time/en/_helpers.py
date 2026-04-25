@@ -80,11 +80,11 @@ class RelTime:
     def not_latent(self) -> RelTime:
         return replace(self, latent=False) if self.latent else self
 
-    def resolve(self, context) -> dict | None:
+    def resolve(self, context) -> TimeValue | None:
         value = self.compute(context.reference_time)
         if value is None:
             return None
-        return TimeValue(primary=value, holiday=self.holiday).to_dict()
+        return TimeValue(primary=value, holiday=self.holiday)
 
 
 # ---------------------------------------------------------------------------

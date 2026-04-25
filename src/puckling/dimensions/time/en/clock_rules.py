@@ -72,7 +72,7 @@ _MINUTE_WORD_PATTERN = "|".join(sorted(_MINUTE_WORDS, key=len, reverse=True))
 
 _HOUR_DIGIT_OR_WORD = r"\d{1,2}|" + _HOUR_WORD_PATTERN
 _MINUTE_DIGIT_OR_WORD = r"\d{1,2}|" + _MINUTE_WORD_PATTERN
-_AMPM = r"([ap])\.?m?\.?"
+_AMPM = r"([ap])(?:\s*\.?\s*m\.?|\.(?![A-Za-z])|(?![A-Za-z]))"
 
 
 def _parse_int_or_word(text: str, words: dict[str, int]) -> int | None:

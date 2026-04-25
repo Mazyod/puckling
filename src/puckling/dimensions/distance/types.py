@@ -23,11 +23,8 @@ class DistanceValue:
     unit: DistanceUnit | None = None
     latent: bool = False
 
-    def resolve(self, _context: object) -> dict:
-        out = {"value": self.value, "type": "value"}
-        if self.unit is not None:
-            out["unit"] = self.unit.value
-        return out
+    def resolve(self, _context: object) -> DistanceValue:
+        return self
 
 
 def distance(value: float, unit: DistanceUnit | None = None) -> DistanceValue:

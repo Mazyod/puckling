@@ -10,13 +10,13 @@ from __future__ import annotations
 
 import pytest
 
-from puckling import Context, Options, parse
+from puckling import Context, DimensionName, Options, parse
 
 # Per-dimension lists of ``(phrase, locale_marker)``. We deliberately avoid
 # phrases whose substrings happen to be Arabic numeral words (e.g. ``ست`` for
 # "six") or English calendar/duration keywords (e.g. ``sun``, ``a h``,
 # ``shuhur``) — those would otherwise trigger spurious sub-span matches.
-NEGATIVE_BY_DIM: dict[str, tuple[tuple[str, str], ...]] = {
+NEGATIVE_BY_DIM: dict[DimensionName, tuple[tuple[str, str], ...]] = {
     "numeral": (
         ("the quick brown fox", "en"),
         ("hello world", "en"),
@@ -156,7 +156,7 @@ NEGATIVE_BY_DIM: dict[str, tuple[tuple[str, str], ...]] = {
 }
 
 
-def _negative_cases() -> list[tuple[str, str, str]]:
+def _negative_cases() -> list[tuple[DimensionName, str, str]]:
     """Flatten ``NEGATIVE_BY_DIM`` into ``(dim, phrase, locale)`` triples."""
     return [
         (dim, phrase, locale)
@@ -167,7 +167,7 @@ def _negative_cases() -> list[tuple[str, str, str]]:
 
 @pytest.mark.parametrize("dim, phrase, locale", _negative_cases())
 def test_negative_corpus(
-    dim: str,
+    dim: DimensionName,
     phrase: str,
     locale: str,
     ctx_en: Context,

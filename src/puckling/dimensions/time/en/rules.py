@@ -973,6 +973,9 @@ _hhmmss_rule = Rule(
 )
 
 
+_AMPM = r"([ap])(?:\s*\.?\s*m\.?|\.(?![A-Za-z])|(?![A-Za-z]))"
+
+
 def _hhmm_am_pm_prod(tokens: tuple[Token, ...]) -> Token | None:
     """e.g. '3:18am', '11:45pm', '5pm' (minutes optional)."""
     digits = tokens[0].value
@@ -1002,7 +1005,7 @@ _hhmm_ampm_rule = Rule(
     name="hh:mm am/pm",
     pattern=(
         regex(r"((?:1[012]|0?[1-9]))(?:[:.]([0-5]\d))?"),
-        regex(r"([ap])\.?m?\.?"),
+        regex(_AMPM),
     ),
     prod=_hhmm_am_pm_prod,
 )
@@ -1027,7 +1030,7 @@ def _bare_hour_am_pm_prod(tokens: tuple[Token, ...]) -> Token | None:
 
 _bare_hour_ampm_rule = Rule(
     name="<H> am/pm",
-    pattern=(regex(r"(?:1[012]|0?[1-9])"), regex(r"([ap])\.?m?\.?")),
+    pattern=(regex(r"(?:1[012]|0?[1-9])"), regex(_AMPM)),
     prod=_bare_hour_am_pm_prod,
 )
 
@@ -1074,7 +1077,7 @@ def _word_hour_am_pm_prod(tokens: tuple[Token, ...]) -> Token | None:
 
 _word_hour_ampm_rule = Rule(
     name="<word-H> am/pm",
-    pattern=(regex(_HOUR_WORD_PATTERN), regex(r"([ap])\.?m?\.?")),
+    pattern=(regex(_HOUR_WORD_PATTERN), regex(_AMPM)),
     prod=_word_hour_am_pm_prod,
 )
 

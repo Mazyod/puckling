@@ -15,10 +15,15 @@ from __future__ import annotations
 import pytest
 
 from puckling import Entity, Options, parse
+from puckling.dimensions.time.types import IntervalValue, TimeValue
 
 
 def _intervals(entities: list[Entity]) -> list[Entity]:
-    return [e for e in entities if isinstance(e.value, dict) and e.value.get("type") == "interval"]
+    return [
+        e
+        for e in entities
+        if isinstance(e.value, TimeValue) and isinstance(e.value.primary, IntervalValue)
+    ]
 
 
 # Category 1: known-pathological phrases must complete within a tight bound.

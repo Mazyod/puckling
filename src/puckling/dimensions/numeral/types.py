@@ -22,8 +22,8 @@ class NumeralValue:
     multipliable: bool = False
     latent: bool = False
 
-    def resolve(self, _context: object) -> dict:
-        return {"value": self.value, "type": "value"}
+    def resolve(self, _context: object) -> NumeralValue:
+        return self
 
 
 def numeral(value: int | float, *, grain: int | None = None, multipliable: bool = False) -> NumeralValue:

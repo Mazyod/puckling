@@ -17,7 +17,9 @@ import datetime as dt
 import pytest
 
 from puckling import Context, Locale, Options, parse
+from puckling.dimensions.time.types import TimeValue
 from puckling.locale import Lang
+from tests.value_helpers import time_instant
 
 
 def _ctx_en(year: int, month: int, day: int, hour: int = 12, minute: int = 0) -> Context:
@@ -27,16 +29,24 @@ def _ctx_en(year: int, month: int, day: int, hour: int = 12, minute: int = 0) ->
     )
 
 
-def _time_value(entities) -> dict | None:
-    """Return the first time-dim entity's value dict, or None."""
+def _time_value(entities) -> TimeValue | None:
+    """Return the first time-dim entity's value object, or None."""
     for e in entities:
         if e.dim == "time":
             return e.value
     return None
 
 
-def _parse_time(phrase: str, ctx: Context) -> dict | None:
+def _parse_time(phrase: str, ctx: Context) -> TimeValue | None:
     return _time_value(parse(phrase, ctx, Options(), dims=("time",)))
+
+
+def _value_iso(value: TimeValue) -> str:
+    return time_instant(value).value.isoformat()
+
+
+def _value_grain(value: TimeValue) -> str:
+    return time_instant(value).grain.value
 
 
 # ---------------------------------------------------------------------------
@@ -47,8 +57,8 @@ def test_leap_year_tomorrow():
     """2024-02-29 + 1 day = 2024-03-01 (no Feb 30)."""
     value = _parse_time("tomorrow", _ctx_en(2024, 2, 29))
     assert value is not None
-    assert value["value"].startswith("2024-03-01")
-    assert value["grain"] == "day"
+    assert _value_iso(value).startswith("2024-03-01")
+    assert _value_grain(value) == "day"
 
 
 def test_leap_year_in_365_days():
@@ -56,8 +66,8 @@ def test_leap_year_in_365_days():
     value = _parse_time("in 365 days", _ctx_en(2024, 2, 29))
     assert value is not None
     # Grain comes back as 'hour' for "in N days" (preserves reference clock).
-    assert value["value"].startswith("2025-02-28")
-    assert value["grain"] == "hour"
+    assert _value_iso(value).startswith("2025-02-28")
+    assert _value_grain(value) == "hour"
 
 
 def test_leap_year_in_1_year_clamps_to_feb_month():
@@ -69,8 +79,8 @@ def test_leap_year_in_1_year_clamps_to_feb_month():
     """
     value = _parse_time("in 1 year", _ctx_en(2024, 2, 29))
     assert value is not None
-    assert value["value"] == "2025-02-01T00:00:00+00:00"
-    assert value["grain"] == "month"
+    assert _value_iso(value) == "2025-02-01T00:00:00+00:00"
+    assert _value_grain(value) == "month"
 
 
 # ---------------------------------------------------------------------------
@@ -81,16 +91,16 @@ def test_year_boundary_forward_tomorrow():
     """2023-12-31 + 1 day = 2024-01-01."""
     value = _parse_time("tomorrow", _ctx_en(2023, 12, 31, 23, 0))
     assert value is not None
-    assert value["value"].startswith("2024-01-01")
-    assert value["grain"] == "day"
+    assert _value_iso(value).startswith("2024-01-01")
+    assert _value_grain(value) == "day"
 
 
 def test_year_boundary_forward_in_1_hour():
     """2023-12-31 23:00 + 1 hour = 2024-01-01 00:00."""
     value = _parse_time("in 1 hour", _ctx_en(2023, 12, 31, 23, 0))
     assert value is not None
-    assert value["value"] == "2024-01-01T00:00:00+00:00"
-    assert value["grain"] == "minute"
+    assert _value_iso(value) == "2024-01-01T00:00:00+00:00"
+    assert _value_grain(value) == "minute"
 
 
 # ---------------------------------------------------------------------------
@@ -101,16 +111,16 @@ def test_year_boundary_backward_yesterday():
     """2024-01-01 - 1 day = 2023-12-31."""
     value = _parse_time("yesterday", _ctx_en(2024, 1, 1, 1, 0))
     assert value is not None
-    assert value["value"].startswith("2023-12-31")
-    assert value["grain"] == "day"
+    assert _value_iso(value).startswith("2023-12-31")
+    assert _value_grain(value) == "day"
 
 
 def test_year_boundary_backward_1_hour_ago():
     """2024-01-01 01:00 - 1 hour = 2024-01-01 00:00 (does not roll into prev year)."""
     value = _parse_time("1 hour ago", _ctx_en(2024, 1, 1, 1, 0))
     assert value is not None
-    assert value["value"] == "2024-01-01T00:00:00+00:00"
-    assert value["grain"] == "minute"
+    assert _value_iso(value) == "2024-01-01T00:00:00+00:00"
+    assert _value_grain(value) == "minute"
 
 
 # ---------------------------------------------------------------------------
@@ -125,16 +135,16 @@ def test_next_month_from_jan_31_leap_year():
     """
     value = _parse_time("next month", _ctx_en(2024, 1, 31))
     assert value is not None
-    assert value["value"] == "2024-02-01T00:00:00+00:00"
-    assert value["grain"] == "month"
+    assert _value_iso(value) == "2024-02-01T00:00:00+00:00"
+    assert _value_grain(value) == "month"
 
 
 def test_next_month_from_jan_31_non_leap_year():
     """Same as above, but 2023 is not a leap year — still 2023-02-01 month-grain."""
     value = _parse_time("next month", _ctx_en(2023, 1, 31))
     assert value is not None
-    assert value["value"] == "2023-02-01T00:00:00+00:00"
-    assert value["grain"] == "month"
+    assert _value_iso(value) == "2023-02-01T00:00:00+00:00"
+    assert _value_grain(value) == "month"
 
 
 # ---------------------------------------------------------------------------
@@ -149,8 +159,8 @@ def test_bare_weekday_on_same_weekday_skips_to_next():
     """
     value = _parse_time("Tuesday", _ctx_en(2013, 2, 12))
     assert value is not None
-    assert value["value"].startswith("2013-02-19")
-    assert value["grain"] == "day"
+    assert _value_iso(value).startswith("2013-02-19")
+    assert _value_grain(value) == "day"
 
 
 def test_this_weekday_on_same_weekday_also_skips():
@@ -161,8 +171,8 @@ def test_this_weekday_on_same_weekday_also_skips():
     """
     value = _parse_time("this Tuesday", _ctx_en(2013, 2, 12))
     assert value is not None
-    assert value["value"].startswith("2013-02-19")
-    assert value["grain"] == "day"
+    assert _value_iso(value).startswith("2013-02-19")
+    assert _value_grain(value) == "day"
 
 
 # ---------------------------------------------------------------------------
@@ -177,8 +187,8 @@ def test_next_monday_on_sunday():
     """
     value = _parse_time("next Monday", _ctx_en(2013, 2, 10))
     assert value is not None
-    assert value["value"].startswith("2013-02-11")
-    assert value["grain"] == "day"
+    assert _value_iso(value).startswith("2013-02-11")
+    assert _value_grain(value) == "day"
 
 
 # ---------------------------------------------------------------------------
@@ -189,8 +199,8 @@ def test_last_monday_on_monday():
     """"last Monday" on a Monday returns the prior week's Monday (2013-02-04)."""
     value = _parse_time("last Monday", _ctx_en(2013, 2, 11))
     assert value is not None
-    assert value["value"].startswith("2013-02-04")
-    assert value["grain"] == "day"
+    assert _value_iso(value).startswith("2013-02-04")
+    assert _value_grain(value) == "day"
 
 
 # ---------------------------------------------------------------------------
@@ -201,8 +211,8 @@ def test_today_idempotence():
     """"today" returns the date of the reference, day-grain, time stripped."""
     value = _parse_time("today", _ctx_en(2013, 2, 12, 4, 30))
     assert value is not None
-    assert value["value"] == "2013-02-12T00:00:00+00:00"
-    assert value["grain"] == "day"
+    assert _value_iso(value) == "2013-02-12T00:00:00+00:00"
+    assert _value_grain(value) == "day"
 
 
 # ---------------------------------------------------------------------------
@@ -216,8 +226,8 @@ def test_past_clock_time_rolls_to_next_day():
     """
     value = _parse_time("5pm", _ctx_en(2013, 2, 12, 18, 0))
     assert value is not None
-    assert value["value"] == "2013-02-13T17:00:00+00:00"
-    assert value["grain"] == "hour"
+    assert _value_iso(value) == "2013-02-13T17:00:00+00:00"
+    assert _value_grain(value) == "hour"
 
 
 # ---------------------------------------------------------------------------
@@ -228,8 +238,8 @@ def test_future_clock_time_stays_today():
     """At 04:30, "5pm" is later today — resolver picks 17:00 today."""
     value = _parse_time("5pm", _ctx_en(2013, 2, 12, 4, 30))
     assert value is not None
-    assert value["value"] == "2013-02-12T17:00:00+00:00"
-    assert value["grain"] == "hour"
+    assert _value_iso(value) == "2013-02-12T17:00:00+00:00"
+    assert _value_grain(value) == "hour"
 
 
 # ---------------------------------------------------------------------------
@@ -244,9 +254,9 @@ def test_holiday_just_passed_resolves_to_next_year():
     """
     value = _parse_time("Christmas", _ctx_en(2013, 12, 26))
     assert value is not None
-    assert value["value"].startswith("2014-12-25")
-    assert value["grain"] == "day"
-    assert value.get("holiday") == "Christmas"
+    assert _value_iso(value).startswith("2014-12-25")
+    assert _value_grain(value) == "day"
+    assert value.holiday == "Christmas"
 
 
 # ---------------------------------------------------------------------------
@@ -257,8 +267,8 @@ def test_next_year_at_year_end():
     """"next year" on 2013-12-31 resolves to start of 2014, year-grain."""
     value = _parse_time("next year", _ctx_en(2013, 12, 31))
     assert value is not None
-    assert value["value"] == "2014-01-01T00:00:00+00:00"
-    assert value["grain"] == "year"
+    assert _value_iso(value) == "2014-01-01T00:00:00+00:00"
+    assert _value_grain(value) == "year"
 
 
 # ---------------------------------------------------------------------------
@@ -287,4 +297,4 @@ def test_dst_spring_forward_skip():
     assert value is not None
     # DST-aware expectation: skip the missing 02:00–03:00 EST window, land at
     # 03:30 EDT == 2024-03-10 07:30 UTC + 1h ahead of naive shift = 08:30 UTC.
-    assert value["value"] == "2024-03-10T08:30:00+00:00"
+    assert _value_iso(value) == "2024-03-10T08:30:00+00:00"

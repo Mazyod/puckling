@@ -10,63 +10,18 @@ Mirrors:
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass, replace
-from enum import Enum
-from typing import Any
+from dataclasses import replace
 
 from puckling.dimensions.numeral.types import NumeralValue
 from puckling.dimensions.temperature.types import (
+    TemperatureIntervalDirection,
+    TemperatureIntervalValue,
+    TemperatureOpenIntervalValue,
     TemperatureUnit,
     TemperatureValue,
 )
 from puckling.predicates import is_numeral
 from puckling.types import Predicate, Rule, Token, predicate, regex
-
-# ---------------------------------------------------------------------------
-# Internal value objects for intervals.
-#
-# The foundation ``TemperatureValue`` only models a single (value, unit)
-# pair, so interval shapes live here as private classes that implement
-# ``resolve(_context)`` returning the JSON shape Duckling emits.
-
-
-class _OpenDirection(Enum):
-    ABOVE = "from"  # ">= bound" — surfaces as "from"
-    UNDER = "to"  # "<= bound" — surfaces as "to"
-
-
-@dataclass(frozen=True, slots=True)
-class _TemperatureInterval:
-    from_value: float
-    to_value: float
-    unit: TemperatureUnit | None = None
-    latent: bool = False
-
-    def resolve(self, _context: object) -> dict[str, Any] | None:
-        if self.unit is None:
-            return None
-        return {
-            "type": "interval",
-            "from": {"value": self.from_value, "unit": self.unit.value},
-            "to": {"value": self.to_value, "unit": self.unit.value},
-        }
-
-
-@dataclass(frozen=True, slots=True)
-class _TemperatureOpenInterval:
-    bound: float
-    unit: TemperatureUnit | None
-    direction: _OpenDirection
-    latent: bool = False
-
-    def resolve(self, _context: object) -> dict[str, Any] | None:
-        if self.unit is None:
-            return None
-        return {
-            "type": "interval",
-            self.direction.value: {"value": self.bound, "unit": self.unit.value},
-        }
-
 
 # ---------------------------------------------------------------------------
 # Predicates
@@ -180,8 +135,9 @@ def _make_interval_prod(
             return None
         return Token(
             dim="temperature",
-            value=_TemperatureInterval(
-                from_value=lo.value, to_value=hi.value, unit=hi.unit
+            value=TemperatureIntervalValue(
+                start=TemperatureValue(value=lo.value, unit=hi.unit),
+                end=TemperatureValue(value=hi.value, unit=hi.unit),
             ),
         )
 
@@ -189,7 +145,7 @@ def _make_interval_prod(
 
 
 def _make_open_interval_prod(
-    direction: _OpenDirection,
+    direction: TemperatureIntervalDirection,
 ) -> Callable[[tuple[Token, ...]], Token | None]:
     """Build an open-interval production (>= bound or <= bound)."""
 
@@ -199,8 +155,9 @@ def _make_open_interval_prod(
             return None
         return Token(
             dim="temperature",
-            value=_TemperatureOpenInterval(
-                bound=td.value, unit=td.unit, direction=direction
+            value=TemperatureOpenIntervalValue(
+                bound=TemperatureValue(value=td.value, unit=td.unit),
+                direction=direction,
             ),
         )
 
@@ -258,11 +215,11 @@ RULES: tuple[Rule, ...] = (
     Rule(
         name="over/above/at least/more than <temp>",
         pattern=(regex(r"over|above|at least|more than"), _SIMPLE_TEMP),
-        prod=_make_open_interval_prod(_OpenDirection.ABOVE),
+        prod=_make_open_interval_prod(TemperatureIntervalDirection.ABOVE),
     ),
     Rule(
         name="under/less/lower/no more than <temp>",
         pattern=(regex(r"under|(less|lower|not? more) than"), _SIMPLE_TEMP),
-        prod=_make_open_interval_prod(_OpenDirection.UNDER),
+        prod=_make_open_interval_prod(TemperatureIntervalDirection.UNDER),
     ),
 )

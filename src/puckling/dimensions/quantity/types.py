@@ -12,11 +12,8 @@ class QuantityValue:
     product: str | None = None
     latent: bool = False
 
-    def resolve(self, _context: object) -> dict:
-        out = {"value": self.value, "unit": self.unit, "type": "value"}
-        if self.product is not None:
-            out["product"] = self.product
-        return out
+    def resolve(self, _context: object) -> QuantityValue:
+        return self
 
 
 def quantity(value: float, unit: str, product: str | None = None) -> QuantityValue:

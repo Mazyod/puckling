@@ -133,10 +133,10 @@ class TimeData:
     # When set, the resolver will use this value directly instead of searching.
     pinned: SingleTimeValue | None = None
 
-    def resolve(self, context) -> dict:
+    def resolve(self, context) -> TimeValue | None:
         from puckling.dimensions.time.helpers import resolve_time_data
 
         value = resolve_time_data(self, context.reference_time)
         if value is None:
-            return {}
-        return value.to_dict()
+            return None
+        return TimeValue(primary=value, holiday=self.holiday)

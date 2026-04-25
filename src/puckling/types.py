@@ -97,17 +97,6 @@ class Rule:
     prod: Production
 
 
-@dataclass(frozen=True, slots=True)
-class Resolved:
-    """A fully resolved parse result, ready to surface to callers."""
-
-    range: Range
-    dim: str
-    value: Any
-    grain: str | None = None
-    latent: bool = False
-
-
 def regex(pattern: str, flags: int = 0) -> RegexItem:
     """Helper to build a `RegexItem` (Duckling's `regex` constructor)."""
     return RegexItem(pattern=pattern, flags=flags)

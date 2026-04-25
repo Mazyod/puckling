@@ -63,11 +63,11 @@ class WrappedTimeData:
             return hash((self.key, self.inner.grain, self.inner.latent, self.inner.holiday))
         return id(self.inner)
 
-    def resolve(self, context) -> dict:
+    def resolve(self, context) -> TimeValue | None:
         instant = resolve_time_data(self.inner, context.reference_time)
         if instant is None:
-            return {}
-        return TimeValue(primary=instant, holiday=self.inner.holiday).to_dict()
+            return None
+        return TimeValue(primary=instant, holiday=self.inner.holiday)
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,10 +78,10 @@ class RelativeDayTime:
     grain: Grain = Grain.DAY
     latent: bool = False
 
-    def resolve(self, context) -> dict:
+    def resolve(self, context) -> TimeValue:
         anchor = truncate(context.reference_time, Grain.DAY)
         moment = anchor + dt.timedelta(days=self.offset_days)
-        return TimeValue(primary=InstantValue(value=moment, grain=self.grain)).to_dict()
+        return TimeValue(primary=InstantValue(value=moment, grain=self.grain))
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,11 +98,11 @@ class TimeOfDayValue:
     latent: bool = False
     grain: Grain = Grain.MINUTE
 
-    def resolve(self, context) -> dict:
+    def resolve(self, context) -> TimeValue:
         moment = context.reference_time.replace(
             hour=self.hour, minute=self.minute, second=0, microsecond=0
         )
-        return TimeValue(primary=InstantValue(value=moment, grain=self.grain)).to_dict()
+        return TimeValue(primary=InstantValue(value=moment, grain=self.grain))
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,10 +117,10 @@ class RelativeGrainTime:
     offset: int
     latent: bool = False
 
-    def resolve(self, context) -> dict:
+    def resolve(self, context) -> TimeValue:
         anchor = truncate(context.reference_time, self.grain)
         moment = add_grain(anchor, self.grain, self.offset)
-        return TimeValue(primary=InstantValue(value=moment, grain=self.grain)).to_dict()
+        return TimeValue(primary=InstantValue(value=moment, grain=self.grain))
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,7 +132,7 @@ class HolidayValue:
     grain: Grain = Grain.DAY
     latent: bool = False
 
-    def resolve(self, context) -> dict:
+    def resolve(self, context) -> TimeValue | None:
         ref = context.reference_time
         ref_date = ref.date()
         for candidate_year in (ref.year, ref.year + 1):
@@ -143,8 +143,8 @@ class HolidayValue:
                 target.year, target.month, target.day, tzinfo=ref.tzinfo
             )
             primary = InstantValue(value=target_dt, grain=Grain.DAY)
-            return TimeValue(primary=primary, holiday=self.name).to_dict()
-        return {}
+            return TimeValue(primary=primary, holiday=self.name)
+        return None
 
 
 # ---------------------------------------------------------------------------

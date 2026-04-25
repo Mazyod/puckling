@@ -14,6 +14,8 @@ import unicodedata
 import pytest
 
 from puckling import Options, parse
+from puckling.dimensions.numeral.types import NumeralValue
+from tests.value_helpers import value_matches
 
 # A ~10K character string of repeated English filler. Reused by every long-
 # input test; building it once keeps each test body focused on its assertion.
@@ -56,7 +58,7 @@ def test_single_char_letter_a_en(ctx_en):
     entities = parse("a", ctx_en, Options())
     assert len(entities) == 1
     assert entities[0].dim == "numeral"
-    assert entities[0].value == {"value": 1, "type": "value"}
+    assert value_matches(entities[0].value, {"value": 1, "type": "value"})
 
 
 def test_single_char_letter_a_ar(ctx_ar):
@@ -68,7 +70,7 @@ def test_single_char_digit_en(ctx_en):
     entities = parse("5", ctx_en, Options())
     assert len(entities) == 1
     assert entities[0].dim == "numeral"
-    assert entities[0].value == {"value": 5, "type": "value"}
+    assert value_matches(entities[0].value, {"value": 5, "type": "value"})
     assert entities[0].body == "5"
 
 
@@ -77,7 +79,7 @@ def test_single_char_digit_ar(ctx_ar):
     assert len(entities) == 1
     assert entities[0].dim == "numeral"
     # AR numeral rules surface the value as a float.
-    assert entities[0].value == {"value": 5.0, "type": "value"}
+    assert value_matches(entities[0].value, {"value": 5.0, "type": "value"})
 
 
 def test_single_char_space(ctx_en):
@@ -165,7 +167,7 @@ def test_alt_digit_form_en(ctx_en, text):
     entities = parse(text, ctx_en, Options())
     assert len(entities) == 1
     assert entities[0].dim == "numeral"
-    assert entities[0].value == {"value": 5, "type": "value"}
+    assert value_matches(entities[0].value, {"value": 5, "type": "value"})
 
 
 @pytest.mark.parametrize("text", _DIGIT_FORMS)
@@ -173,7 +175,7 @@ def test_alt_digit_form_ar(ctx_ar, text):
     entities = parse(text, ctx_ar, Options())
     assert len(entities) == 1
     assert entities[0].dim == "numeral"
-    assert entities[0].value == {"value": 5.0, "type": "value"}
+    assert value_matches(entities[0].value, {"value": 5.0, "type": "value"})
 
 
 # ---------------------------------------------------------------------------
@@ -185,7 +187,10 @@ def test_control_chars_no_crash(ctx_en):
     # control bytes break the contiguous distance regex, so only the bare
     # numeral survives.
     entities = parse("5\x00\x07km", ctx_en, Options())
-    assert any(e.dim == "numeral" and e.value == {"value": 5, "type": "value"} for e in entities)
+    assert any(
+        e.dim == "numeral" and value_matches(e.value, {"value": 5, "type": "value"})
+        for e in entities
+    )
 
 
 def test_control_chars_at_boundary(ctx_en):
@@ -253,7 +258,10 @@ def test_directional_mark_between_digit_and_unit(ctx_en):
     # An RLM between "5" and "km" splits the distance match; only the
     # numeral survives. Must not crash.
     entities = parse("5‏km", ctx_en, Options())
-    assert any(e.dim == "numeral" and e.value == {"value": 5, "type": "value"} for e in entities)
+    assert any(
+        e.dim == "numeral" and value_matches(e.value, {"value": 5, "type": "value"})
+        for e in entities
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -266,7 +274,7 @@ def test_very_large_number_en(ctx_en):
     assert len(entities) == 1
     assert entities[0].dim == "numeral"
     # Python ints are arbitrary precision; the value must round-trip exactly.
-    assert entities[0].value == {"value": int(text), "type": "value"}
+    assert value_matches(entities[0].value, {"value": int(text), "type": "value"})
 
 
 def test_very_large_number_no_overflow(ctx_en):
@@ -274,7 +282,7 @@ def test_very_large_number_no_overflow(ctx_en):
     text = "9" * 20
     entities = parse(text, ctx_en, Options())
     assert len(entities) == 1
-    assert entities[0].value == {"value": int(text), "type": "value"}
+    assert value_matches(entities[0].value, {"value": int(text), "type": "value"})
 
 
 # ---------------------------------------------------------------------------
@@ -286,7 +294,7 @@ def test_negative_zero(ctx_en):
     assert len(entities) == 1
     # Pinned: -0 collapses to 0 (Python equality), body retains the sign.
     assert entities[0].dim == "numeral"
-    assert entities[0].value == {"value": 0, "type": "value"}
+    assert value_matches(entities[0].value, {"value": 0, "type": "value"})
     assert entities[0].body == "-0"
 
 
@@ -294,7 +302,7 @@ def test_explicit_positive_sign(ctx_en):
     # The leading "+" is not part of the numeral rule; only "5" matches.
     entities = parse("+5", ctx_en, Options())
     assert len(entities) == 1
-    assert entities[0].value == {"value": 5, "type": "value"}
+    assert value_matches(entities[0].value, {"value": 5, "type": "value"})
     assert entities[0].body == "5"
     assert entities[0].start == 1
 
@@ -303,7 +311,7 @@ def test_double_negative_sign_en(ctx_en):
     # The negative-numeral rule consumes one of the two minuses: "-5".
     entities = parse("--5", ctx_en, Options())
     assert len(entities) == 1
-    assert entities[0].value == {"value": -5, "type": "value"}
+    assert value_matches(entities[0].value, {"value": -5, "type": "value"})
     assert entities[0].body == "-5"
     assert entities[0].start == 1
 
@@ -316,14 +324,18 @@ def test_space_before_thousands_separator(ctx_en):
     # "1 ,000" — the space breaks the integer-with-thousands rule, so the
     # parser sees two separate numerals.
     entities = parse("1 ,000", ctx_en, Options())
-    values = sorted(e.value["value"] for e in entities if e.dim == "numeral")
+    values = sorted(
+        e.value.value for e in entities if e.dim == "numeral" and isinstance(e.value, NumeralValue)
+    )
     assert values == [0, 1]
 
 
 def test_spaces_between_digits(ctx_en):
     # " 1 0 0" — each digit becomes its own numeral entity.
     entities = parse(" 1 0 0", ctx_en, Options())
-    values = [e.value["value"] for e in entities if e.dim == "numeral"]
+    values = [
+        e.value.value for e in entities if e.dim == "numeral" and isinstance(e.value, NumeralValue)
+    ]
     assert values == [1, 0, 0]
 
 
@@ -337,7 +349,7 @@ def test_multiple_spaces_in_distance(ctx_en):
     entities = parse("5    km", ctx_en, Options())
     assert any(
         e.dim == "distance"
-        and e.value == {"value": 5, "type": "value", "unit": "kilometre"}
+        and value_matches(e.value, {"value": 5, "type": "value", "unit": "kilometre"})
         for e in entities
     )
 
@@ -346,7 +358,7 @@ def test_multiple_spaces_in_distance_in_sentence(ctx_en):
     entities = parse("I went 5    km today", ctx_en, Options())
     distances = [e for e in entities if e.dim == "distance"]
     assert distances, f"expected a distance entity, got {entities!r}"
-    assert distances[0].value == {"value": 5, "type": "value", "unit": "kilometre"}
+    assert value_matches(distances[0].value, {"value": 5, "type": "value", "unit": "kilometre"})
     assert distances[0].body == "5    km"
 
 
@@ -358,7 +370,7 @@ def test_trailing_period_distance(ctx_en):
     entities = parse("5km.", ctx_en, Options())
     assert any(
         e.dim == "distance"
-        and e.value == {"value": 5, "type": "value", "unit": "kilometre"}
+        and value_matches(e.value, {"value": 5, "type": "value", "unit": "kilometre"})
         and e.body == "5km"
         for e in entities
     )
@@ -368,7 +380,7 @@ def test_trailing_comma_money(ctx_en):
     entities = parse("$50,", ctx_en, Options())
     assert any(
         e.dim == "amount_of_money"
-        and e.value == {"type": "value", "value": 50, "unit": "USD"}
+        and value_matches(e.value, {"type": "value", "value": 50, "unit": "USD"})
         and e.body == "$50"
         for e in entities
     )
@@ -378,7 +390,7 @@ def test_trailing_bang_email(ctx_en):
     entities = parse("alice@example.com!", ctx_en, Options())
     assert any(
         e.dim == "email"
-        and e.value == {"value": "alice@example.com", "type": "value"}
+        and value_matches(e.value, {"value": "alice@example.com", "type": "value"})
         and e.body == "alice@example.com"
         for e in entities
     )

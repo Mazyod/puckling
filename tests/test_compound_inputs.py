@@ -82,15 +82,6 @@ def test_email_and_money_in_one_phrase(ctx_en):
     _assert_no_overlaps(entities)
 
 
-@pytest.mark.xfail(
-    reason=(
-        "TODO(puckling): edge case — currency symbols 'Sen' (Sentavo) and 'Rs' "
-        "(Indian Rupees) match inside English words 'Send' and 'intersection', "
-        "producing spurious amount_of_money entities. Real bug: currency "
-        "abbreviations need word-boundary anchoring."
-    ),
-    strict=False,
-)
 def test_distance_and_ordinal_in_one_phrase(ctx_en):
     text = "Send 5 km north then turn at the 3rd intersection"
     entities = parse(text, ctx_en, Options())
@@ -155,15 +146,6 @@ def test_two_adjacent_distance_entities(ctx_en):
     _assert_no_overlaps(entities)
 
 
-@pytest.mark.xfail(
-    reason=(
-        "TODO(puckling): edge case — 'time' rule matches '5 p' (5 PM) inside "
-        "'$5 plus', overlapping the 2-char '$5' money span. Longest-span "
-        "selection drops '$5' and keeps a bare '$' token. Real bug: 'p' alone "
-        "should not anchor a PM time match without a digit prefix."
-    ),
-    strict=False,
-)
 def test_three_adjacent_money_entities(ctx_en):
     text = "$5 plus $10 equals $15"
     entities = parse(text, ctx_en, Options())
@@ -174,15 +156,6 @@ def test_three_adjacent_money_entities(ctx_en):
     _assert_no_overlaps(entities)
 
 
-@pytest.mark.xfail(
-    reason=(
-        "TODO(puckling): edge case — '10 a' (10 AM) matches as a 4-char time "
-        "span overlapping the 3-char '$10' money span; longest-match drops "
-        "'$10' and leaves a bare '$' token. Same root cause as the '$5 plus' "
-        "case: PM/AM letter alone should not anchor a time match."
-    ),
-    strict=False,
-)
 def test_two_adjacent_money_entities_unambiguous(ctx_en):
     """Two adjacent dollar amounts should both surface as money entities."""
     text = "$10 and $20"

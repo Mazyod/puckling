@@ -13,8 +13,25 @@ from __future__ import annotations
 import datetime as dt
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, Literal, cast
 
+from puckling.dimensions.amount_of_money.types import AmountOfMoneyValue
+from puckling.dimensions.credit_card.types import CreditCardValue
+from puckling.dimensions.distance.types import DistanceValue
+from puckling.dimensions.duration.types import DurationValue
+from puckling.dimensions.email.types import EmailValue
+from puckling.dimensions.numeral.types import NumeralValue
+from puckling.dimensions.ordinal.types import OrdinalValue
+from puckling.dimensions.phone_number.types import PhoneNumberValue
+from puckling.dimensions.quantity.types import QuantityValue
+from puckling.dimensions.temperature.types import (
+    TemperatureIntervalValue,
+    TemperatureOpenIntervalValue,
+    TemperatureValue,
+)
+from puckling.dimensions.time.types import TimeValue
+from puckling.dimensions.url.types import UrlValue
+from puckling.dimensions.volume.types import VolumeValue
 from puckling.engine import (
     DEFAULT_MAX_ITERATIONS,
     DEFAULT_MAX_TOKENS,
@@ -22,7 +39,47 @@ from puckling.engine import (
     parse_and_resolve,
 )
 from puckling.locale import Lang, Locale
-from puckling.types import Resolved, Rule, Token
+from puckling.types import Range, Rule, Token
+
+type DimensionName = Literal[
+    "amount_of_money",
+    "credit_card",
+    "distance",
+    "duration",
+    "email",
+    "numeral",
+    "ordinal",
+    "phone_number",
+    "quantity",
+    "temperature",
+    "time",
+    "url",
+    "volume",
+]
+
+type TemperatureResolvedValue = (
+    TemperatureValue | TemperatureIntervalValue | TemperatureOpenIntervalValue
+)
+
+# The union of every value type produced by a first-party dimension. Custom
+# dimensions discovered via the registry surface their own value types
+# unchanged at runtime — this alias documents what built-in dimensions return
+# and is exported for callers that want to narrow with `isinstance`.
+type ResolvedValue = (
+    AmountOfMoneyValue
+    | CreditCardValue
+    | DistanceValue
+    | DurationValue
+    | EmailValue
+    | NumeralValue
+    | OrdinalValue
+    | PhoneNumberValue
+    | QuantityValue
+    | TemperatureResolvedValue
+    | TimeValue
+    | UrlValue
+    | VolumeValue
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,14 +106,25 @@ class Options:
 
 
 @dataclass(frozen=True, slots=True)
-class Entity:
+class Entity[ValueT]:
     """A surfaced parse result, ready for callers."""
 
     body: str
-    dim: str
-    value: Any
+    dim: DimensionName
+    value: ValueT
     start: int
     end: int
+    latent: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class ResolvedEntity[ValueT]:
+    """A resolved parse result before longest non-overlapping winner selection."""
+
+    range: Range
+    dim: DimensionName
+    value: ValueT
+    grain: str | None = None
     latent: bool = False
 
 
@@ -64,15 +132,17 @@ def parse(
     text: str,
     context: Context,
     options: Options | None = None,
-    dims: tuple[str, ...] | None = None,
-) -> list[Entity]:
+    dims: tuple[DimensionName, ...] | None = None,
+) -> list[Entity[ResolvedValue]]:
     """Parse `text` into a list of structured entities.
 
     Returns the longest non-overlapping set of resolved entities. Internal
-    `regex_match` tokens are never surfaced.
+    `regex_match` tokens are never surfaced. `dims`, if given, must contain
+    only names returned by `supported_dimensions()`.
     """
     options = options or Options()
-    rules = _collect_rules(context.locale.lang, dims)
+    validated = _validate_dims(dims)
+    rules = _collect_rules(context.locale.lang, validated)
     tokens = parse_and_resolve(
         rules,
         text,
@@ -81,8 +151,8 @@ def parse(
         max_tokens=options.max_tokens,
     )
     resolved = _resolve_tokens(tokens, context, options)
-    if dims is not None:
-        wanted = set(dims)
+    if validated is not None:
+        wanted = set(validated)
         resolved = [r for r in resolved if r.dim in wanted]
     return _select_winners(text, resolved)
 
@@ -91,11 +161,12 @@ def analyze(
     text: str,
     context: Context,
     options: Options | None = None,
-    dims: tuple[str, ...] | None = None,
-) -> list[Resolved]:
+    dims: tuple[DimensionName, ...] | None = None,
+) -> list[ResolvedEntity[ResolvedValue]]:
     """Like `parse`, but returns the full set of resolved tokens (including overlaps)."""
     options = options or Options()
-    rules = _collect_rules(context.locale.lang, dims)
+    validated = _validate_dims(dims)
+    rules = _collect_rules(context.locale.lang, validated)
     tokens = parse_and_resolve(
         rules,
         text,
@@ -104,8 +175,8 @@ def analyze(
         max_tokens=options.max_tokens,
     )
     resolved = _resolve_tokens(tokens, context, options)
-    if dims is not None:
-        wanted = set(dims)
+    if validated is not None:
+        wanted = set(validated)
         resolved = [r for r in resolved if r.dim in wanted]
     return resolved
 
@@ -121,6 +192,21 @@ def supported_dimensions() -> tuple[str, ...]:
 # internals
 
 
+def _validate_dims(
+    dims: tuple[DimensionName, ...] | None,
+) -> tuple[str, ...] | None:
+    if dims is None:
+        return None
+    known = set(supported_dimensions())
+    unknown = [d for d in dims if d not in known]
+    if unknown:
+        raise ValueError(
+            f"Unknown dimension(s): {sorted(unknown)!r}. "
+            f"Supported: {sorted(known)!r}"
+        )
+    return tuple(dims)
+
+
 def _collect_rules(lang: Lang, dims: tuple[str, ...] | None) -> tuple[Rule, ...]:
     from puckling.dimensions import _registry
 
@@ -131,9 +217,9 @@ def _resolve_tokens(
     tokens: list[Token],
     context: Context,
     options: Options,
-) -> list[Resolved]:
+) -> list[ResolvedEntity[ResolvedValue]]:
     """Convert tokens into `Resolved` results, dropping regex tokens and (by default) latents."""
-    out: list[Resolved] = []
+    out: list[ResolvedEntity[ResolvedValue]] = []
     for tok in tokens:
         if tok.dim in {"regex_match", "time_grain"}:
             continue
@@ -152,11 +238,12 @@ def _resolve_tokens(
             grain = raw_grain
         else:
             grain = None
+        dim = cast(DimensionName, tok.dim)
         out.append(
-            Resolved(
+            ResolvedEntity(
                 range=tok.range,
-                dim=tok.dim,
-                value=resolved_value,
+                dim=dim,
+                value=cast(ResolvedValue, resolved_value),
                 grain=grain,
                 latent=latent,
             )
@@ -164,20 +251,29 @@ def _resolve_tokens(
     return out
 
 
-def _resolve_value(value: Any, context: Context) -> Any:
+def _resolve_value(value: object, context: Context) -> Any:
+    """Run the value's `resolve(context)` if present; otherwise surface it as-is.
+
+    Returns `None` only when a resolver explicitly returns `None`. Custom
+    dimensions discovered by the registry pass through unchanged — the
+    runtime does not enforce membership in `ResolvedValue`.
+    """
     resolver = getattr(value, "resolve", None)
     if callable(resolver):
         return resolver(context)
     return value
 
 
-def _select_winners(text: str, results: list[Resolved]) -> list[Entity]:
+def _select_winners(
+    text: str,
+    results: list[ResolvedEntity[ResolvedValue]],
+) -> list[Entity[ResolvedValue]]:
     """Pick longest non-overlapping spans; ties go to the earlier match."""
     sorted_results = sorted(
         results,
         key=lambda r: (-(r.range.end - r.range.start), r.range.start),
     )
-    chosen: list[Resolved] = []
+    chosen: list[ResolvedEntity[ResolvedValue]] = []
     occupied: list[tuple[int, int]] = []
     for r in sorted_results:
         s, e = r.range.start, r.range.end

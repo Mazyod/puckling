@@ -12,8 +12,8 @@ class OrdinalValue:
     value: int
     latent: bool = False
 
-    def resolve(self, _context: object) -> dict:
-        return {"value": self.value, "type": "ordinal"}
+    def resolve(self, _context: object) -> OrdinalValue:
+        return self
 
 
 def ordinal(value: int) -> OrdinalValue:

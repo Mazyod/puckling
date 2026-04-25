@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Literal
 
 from puckling.dimensions.time.grain import Grain
+
+
+@dataclass(frozen=True, slots=True)
+class NormalizedDuration:
+    value: int
+    unit: Literal["second"] = "second"
 
 
 @dataclass(frozen=True, slots=True)
@@ -14,18 +21,17 @@ class DurationValue:
     value: int
     grain: Grain
     latent: bool = False
+    normalized: NormalizedDuration = field(init=False)
 
-    def resolve(self, _context: object) -> dict:
-        # Duckling normalizes to seconds for unitless comparison; we keep both.
-        return {
-            "value": self.value,
-            "unit": self.grain.value,
-            "type": "value",
-            "normalized": {
-                "value": int(self.value * _SECONDS_PER_GRAIN[self.grain]),
-                "unit": "second",
-            },
-        }
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "normalized",
+            NormalizedDuration(value=int(self.value * _SECONDS_PER_GRAIN[self.grain])),
+        )
+
+    def resolve(self, _context: object) -> DurationValue:
+        return self
 
 
 _SECONDS_PER_GRAIN = {

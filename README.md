@@ -23,6 +23,8 @@ pip install puckling
 
 ```python
 import datetime as dt
+from dataclasses import asdict
+
 from puckling import Context, Lang, Locale, Options, parse
 
 ctx = Context(
@@ -32,6 +34,7 @@ ctx = Context(
 
 for entity in parse("I'll meet you tomorrow at 5pm for $50", ctx, Options()):
     print(entity)
+    print(asdict(entity.value))
 ```
 
 Switch `Locale(Lang.EN)` to `Locale(Lang.AR)` for Arabic input.
@@ -66,7 +69,7 @@ Puckling mirrors Duckling's parsing model in idiomatic, functional Python:
 - **The engine** is a saturating fixed-point parser that applies rules iteratively until no new tokens appear.
 - **Resolution** is context-aware (reference time, locale) and dimension-specific.
 
-All public types are `@dataclass(frozen=True, slots=True)` — no mutation. Cross-dimension references go through predicates (`is_numeral`, `is_grain`, …), never imports, so each rule file stays independent.
+All public types are `@dataclass(frozen=True, slots=True)` — no mutation. Parsed entity values are structured runtime dataclasses; use attributes for typed access or `dataclasses.asdict()` when you need a Python dictionary dump. Cross-dimension references go through predicates (`is_numeral`, `is_grain`, …), never imports, so each rule file stays independent.
 
 ## Engine budgets
 

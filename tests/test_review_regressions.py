@@ -18,6 +18,8 @@ Each test here would fail against the pre-fix code:
 
 from __future__ import annotations
 
+from enum import Enum
+
 import pytest
 
 from puckling import Options, parse
@@ -90,11 +92,11 @@ def test_ar_time_token_dedupes_in_parse_forest(ctx_ar):
 
 
 def _unit_of(entity) -> str | None:
-    """Resolved entity values are dicts; pull `unit` out of dict or attr."""
-    v = entity.value
-    if isinstance(v, dict):
-        return v.get("unit")
-    return getattr(v, "unit", None)
+    """Pull a unit string out of a structured runtime value."""
+    unit = getattr(entity.value, "unit", None)
+    if isinstance(unit, Enum):
+        return str(unit.value)
+    return unit
 
 
 def test_ar_distance_bare_meem_does_not_match_inside_word(ctx_ar):

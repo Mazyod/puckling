@@ -10,8 +10,8 @@ class EmailValue:
     value: str
     latent: bool = False
 
-    def resolve(self, _context: object) -> dict:
-        return {"value": self.value, "type": "value"}
+    def resolve(self, _context: object) -> EmailValue:
+        return self
 
 
 def email(value: str) -> EmailValue:

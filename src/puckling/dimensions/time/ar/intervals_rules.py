@@ -33,27 +33,33 @@ from puckling.dimensions.time.helpers import (
     pinned_instant,
     time,
 )
-from puckling.dimensions.time.types import TimeData
+from puckling.dimensions.time.types import (
+    InstantValue,
+    IntervalDirection,
+    IntervalValue,
+    OpenIntervalValue,
+    TimeData,
+    TimeValue,
+)
 from puckling.types import RegexMatch, Rule, Token, predicate, regex
 
 # ---------------------------------------------------------------------------
 # Resolve-time value classes
 
 
-def _resolved_dict(value, context) -> dict | None:
-    """Coerce a time-token value into its resolved dict via duck-typed `.resolve`."""
+def _resolved_time(value: object, context) -> TimeValue | None:
+    """Coerce a time-token value into a resolved `TimeValue`."""
     resolver = getattr(value, "resolve", None)
     if not callable(resolver):
         return None
     out = resolver(context)
-    if not isinstance(out, dict) or "value" not in out or "grain" not in out:
-        return None
-    return out
+    return out if isinstance(out, TimeValue) else None
 
 
-def _instant_part(d: dict) -> dict:
-    """Reduce a resolved time dict to the `{value, grain}` payload of an instant."""
-    return {"value": d["value"], "grain": d["grain"]}
+def _instant_part(value: TimeValue) -> InstantValue | None:
+    """Extract the resolved instant payload from a time value."""
+    primary = value.primary
+    return primary if isinstance(primary, InstantValue) else None
 
 
 class _SpanIdentityMixin:
@@ -90,16 +96,16 @@ class IntervalCompound(_SpanIdentityMixin):
     span: tuple[tuple[int, int], tuple[int, int]]
     latent: bool = False
 
-    def resolve(self, context) -> dict:
-        a = _resolved_dict(self.left, context)
-        b = _resolved_dict(self.right, context)
+    def resolve(self, context) -> TimeValue | None:
+        a = _resolved_time(self.left, context)
+        b = _resolved_time(self.right, context)
         if a is None or b is None:
-            return {}
-        return {
-            "type": "interval",
-            "from": _instant_part(a),
-            "to": _instant_part(b),
-        }
+            return None
+        start = _instant_part(a)
+        end = _instant_part(b)
+        if start is None or end is None:
+            return None
+        return TimeValue(primary=IntervalValue(start=start, end=end))
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -111,11 +117,19 @@ class OpenIntervalBefore(_SpanIdentityMixin):
     span: tuple[int, int]
     latent: bool = False
 
-    def resolve(self, context) -> dict:
-        d = _resolved_dict(self.bound, context)
-        if d is None:
-            return {}
-        return {"type": "interval", "to": _instant_part(d)}
+    def resolve(self, context) -> TimeValue | None:
+        value = _resolved_time(self.bound, context)
+        if value is None:
+            return None
+        instant = _instant_part(value)
+        if instant is None:
+            return None
+        return TimeValue(
+            primary=OpenIntervalValue(
+                instant=instant,
+                direction=IntervalDirection.BEFORE,
+            )
+        )
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -127,11 +141,19 @@ class OpenIntervalAfter(_SpanIdentityMixin):
     span: tuple[int, int]
     latent: bool = False
 
-    def resolve(self, context) -> dict:
-        d = _resolved_dict(self.bound, context)
-        if d is None:
-            return {}
-        return {"type": "interval", "from": _instant_part(d)}
+    def resolve(self, context) -> TimeValue | None:
+        value = _resolved_time(self.bound, context)
+        if value is None:
+            return None
+        instant = _instant_part(value)
+        if instant is None:
+            return None
+        return TimeValue(
+            primary=OpenIntervalValue(
+                instant=instant,
+                direction=IntervalDirection.AFTER,
+            )
+        )
 
 
 # ---------------------------------------------------------------------------

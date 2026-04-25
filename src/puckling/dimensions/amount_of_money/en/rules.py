@@ -105,7 +105,14 @@ _CURRENCY_BY_TOKEN: dict[str, str] = {
 def _currency_pattern() -> str:
     # Order longest-first so e.g. "us$" beats "$" and "rs." beats "rs".
     keys = sorted(_CURRENCY_BY_TOKEN, key=len, reverse=True)
-    return r"\b?(" + "|".join(re.escape(k) for k in keys) + r")\b?"
+    alpha = [re.escape(k) for k in keys if any(ch.isascii() and ch.isalpha() for ch in k)]
+    symbols = [re.escape(k) for k in keys if not any(ch.isascii() and ch.isalpha() for ch in k)]
+    parts = []
+    if alpha:
+        parts.append(r"(?<![A-Za-z])(" + "|".join(alpha) + r")(?![A-Za-z])")
+    if symbols:
+        parts.append("(" + "|".join(symbols) + ")")
+    return "|".join(parts)
 
 
 # ---------------------------------------------------------------------------
@@ -224,7 +231,7 @@ RULES: tuple[Rule, ...] = (
     # Cent words and the "c" abbreviation — produce a cent currency token.
     Rule(
         name="cent",
-        pattern=(regex(r"cents?|penn(?:y|ies)|pence|sens?|c\b"),),
+        pattern=(regex(r"\b(?:cents?|penn(?:y|ies)|pence|sens?)\b|(?<![A-Za-z])c\b"),),
         prod=_prod_cent_word,
     ),
     # All other currencies — symbols, codes, words.

@@ -11,11 +11,8 @@ class UrlValue:
     domain: str | None = None
     latent: bool = False
 
-    def resolve(self, _context: object) -> dict:
-        out = {"value": self.value, "type": "value"}
-        if self.domain is not None:
-            out["domain"] = self.domain
-        return out
+    def resolve(self, _context: object) -> UrlValue:
+        return self
 
 
 def url(value: str, domain: str | None = None) -> UrlValue:

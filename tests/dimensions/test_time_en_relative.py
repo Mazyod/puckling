@@ -7,6 +7,7 @@ import pytest
 from puckling import Options, parse
 from puckling.corpus import pytest_examples
 from puckling.dimensions.time.en.relative_corpus import CORPUS
+from tests.value_helpers import value_matches
 
 
 def _matches(actual: dict, expected: dict) -> bool:
@@ -31,6 +32,6 @@ def _matches(actual: dict, expected: dict) -> bool:
 def test_relative_corpus(phrase: str, expected: dict, ctx_en) -> None:
     entities = parse(phrase, ctx_en, Options(with_latent=True), dims=("time",))
     assert entities, f"no entity for {phrase!r}"
-    assert any(_matches(e.value, expected) for e in entities), (
+    assert any(value_matches(e.value, expected) for e in entities), (
         f"{phrase!r} resolved to {[e.value for e in entities]}, expected {expected}"
     )

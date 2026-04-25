@@ -16,13 +16,14 @@ from puckling.dimensions.email.extra_corpus import (
     MULTI_EMAIL_CORPUS,
     NEGATIVE_CORPUS,
 )
+from tests.value_helpers import value_matches
 
 
 @pytest.mark.parametrize("phrase, expected", pytest_examples(CORPUS))
 def test_extra_corpus(phrase, expected, ctx_en):
     entities = parse(phrase, ctx_en, Options(), dims=("email",))
     assert entities, f"no entity for {phrase!r}"
-    assert expected in [e.value for e in entities]
+    assert any(value_matches(e.value, expected) for e in entities)
 
 
 @pytest.mark.parametrize("phrase, expected_emails", MULTI_EMAIL_CORPUS)

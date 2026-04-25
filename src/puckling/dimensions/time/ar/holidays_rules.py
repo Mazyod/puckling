@@ -166,7 +166,7 @@ class PartOfDayInterval:
     grain: Grain = Grain.HOUR
     latent: bool = True
 
-    def resolve(self, context) -> dict:
+    def resolve(self, context) -> TimeValue:
         ref_day = context.reference_time.replace(
             hour=0, minute=0, second=0, microsecond=0
         )
@@ -180,7 +180,7 @@ class PartOfDayInterval:
         else:
             end_value = ref_day.replace(hour=self.end_hour)
         end = InstantValue(value=end_value, grain=Grain.HOUR)
-        return TimeValue(primary=IntervalValue(start=start, end=end)).to_dict()
+        return TimeValue(primary=IntervalValue(start=start, end=end))
 
 
 def _part_of_day_rule(name: str, pattern: str, start_h: int, end_h: int) -> Rule:
