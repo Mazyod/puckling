@@ -15,6 +15,7 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-xdist>=3.5",
+    "pytest-timeout>=2.3",
     "ruff>=0.6",
     "pyright>=1.1.380",
 ]
@@ -33,6 +34,11 @@ packages = ["src/puckling"]
 testpaths = ["tests"]
 addopts = "-ra"
 filterwarnings = ["error"]
+# Hard per-test wall-clock cap. Without this, a runaway parse (engine token
+# saturation) can wedge a test indefinitely. Override per-test with
+# `@pytest.mark.timeout(N)` when needed.
+timeout = 5
+timeout_method = "thread"
 
 [tool.ruff]
 line-length = 100
