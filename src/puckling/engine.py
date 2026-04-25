@@ -14,10 +14,21 @@ The algorithm mirrors Duckling's engine:
 
 Productions are pure; rules are pure data. The engine carries no mutable state
 between calls.
+
+The engine enforces three caps to prevent runaway parses on pathological
+inputs (token-explosion under composition):
+
+- `max_iterations`: outer saturation iterations.
+- `time_budget_ms`: wall-clock budget across the whole call.
+- `max_tokens`: hard cap on total token forest size.
+
+When any cap is hit, the engine returns whatever tokens it has accumulated so
+far. Callers ranking the results still get a valid (possibly partial) parse.
 """
 
 from __future__ import annotations
 
+import time
 from collections.abc import Iterator
 from dataclasses import replace
 
@@ -33,6 +44,16 @@ from puckling.types import (
 
 # Maximum saturation iterations — guards against pathological rule sets.
 DEFAULT_MAX_ITERATIONS = 50
+# Wall-clock cap (ms) for a single `parse_and_resolve` call. Set to `None` to
+# disable. Default is generous enough for real production inputs but tight
+# enough that a runaway parse aborts in seconds, not minutes.
+DEFAULT_TIME_BUDGET_MS: int | None = 2000
+# Hard cap on the total token forest size. Cheap to enforce and deterministic.
+DEFAULT_MAX_TOKENS = 10_000
+
+
+class _ParseBudgetExceeded(Exception):
+    """Raised internally when any of the engine's caps is hit. Caught by `parse_and_resolve`."""
 
 
 def _skip_whitespace(text: str, pos: int) -> int:
@@ -83,11 +104,22 @@ def _match_pattern_from(
             yield (tok, *rest)
 
 
-def _apply_rule(rule: Rule, text: str, tokens: list[Token]) -> list[Token]:
-    """Run `rule` against `text + tokens`, returning newly produced tokens."""
+def _apply_rule(
+    rule: Rule,
+    text: str,
+    tokens: list[Token],
+    deadline: float | None,
+) -> list[Token]:
+    """Run `rule` against `text + tokens`, returning newly produced tokens.
+
+    Checks `deadline` once per starting position. The amortized check overhead
+    is negligible (single `time.monotonic()` call per outer iteration).
+    """
     out: list[Token] = []
     n = len(text)
     for start in range(n + 1):
+        if deadline is not None and time.monotonic() > deadline:
+            raise _ParseBudgetExceeded()
         for matched in _match_pattern_from(rule.pattern, text, start, tokens):
             if not matched:
                 continue
@@ -108,26 +140,46 @@ def parse_and_resolve(
     text: str,
     *,
     max_iterations: int = DEFAULT_MAX_ITERATIONS,
+    time_budget_ms: int | None = DEFAULT_TIME_BUDGET_MS,
+    max_tokens: int = DEFAULT_MAX_TOKENS,
 ) -> list[Token]:
     """Saturating fixed-point parser.
 
     Returns every token produced by any rule, in production order. Callers are
     responsible for filtering to non-overlapping winners (see `puckling.api`).
+
+    On budget exhaustion (`time_budget_ms` or `max_tokens`), returns whatever
+    tokens were accumulated up to that point.
     """
+    deadline: float | None = None
+    if time_budget_ms is not None:
+        deadline = time.monotonic() + time_budget_ms / 1000.0
+
     tokens: list[Token] = []
     seen: set[tuple] = set()
 
-    for _ in range(max_iterations):
-        new_tokens: list[Token] = []
-        for rule in rules:
-            for tok in _apply_rule(rule, text, tokens):
-                key = _token_key(tok)
-                if key in seen:
-                    continue
-                seen.add(key)
-                new_tokens.append(tok)
-        if not new_tokens:
-            break
-        tokens.extend(new_tokens)
+    try:
+        for _ in range(max_iterations):
+            if deadline is not None and time.monotonic() > deadline:
+                break
+            if len(tokens) >= max_tokens:
+                break
+            new_tokens: list[Token] = []
+            for rule in rules:
+                if deadline is not None and time.monotonic() > deadline:
+                    raise _ParseBudgetExceeded()
+                for tok in _apply_rule(rule, text, tokens, deadline):
+                    key = _token_key(tok)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    new_tokens.append(tok)
+                    if len(tokens) + len(new_tokens) >= max_tokens:
+                        raise _ParseBudgetExceeded()
+            if not new_tokens:
+                break
+            tokens.extend(new_tokens)
+    except _ParseBudgetExceeded:
+        pass
 
     return tokens

@@ -14,7 +14,12 @@ import datetime as dt
 from dataclasses import dataclass
 from typing import Any
 
-from puckling.engine import DEFAULT_MAX_ITERATIONS, parse_and_resolve
+from puckling.engine import (
+    DEFAULT_MAX_ITERATIONS,
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_TIME_BUDGET_MS,
+    parse_and_resolve,
+)
 from puckling.locale import Lang, Locale
 from puckling.types import Resolved, Rule, Token
 
@@ -29,10 +34,17 @@ class Context:
 
 @dataclass(frozen=True, slots=True)
 class Options:
-    """Parse options."""
+    """Parse options.
+
+    `parse_timeout_ms` and `max_tokens` cap the engine to prevent runaway
+    parses on pathological inputs. Pass `parse_timeout_ms=None` to disable
+    the wall-clock cap (useful for offline corpus runs).
+    """
 
     with_latent: bool = False
     max_iterations: int = DEFAULT_MAX_ITERATIONS
+    parse_timeout_ms: int | None = DEFAULT_TIME_BUDGET_MS
+    max_tokens: int = DEFAULT_MAX_TOKENS
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,7 +72,13 @@ def parse(
     """
     options = options or Options()
     rules = _collect_rules(context.locale.lang, dims)
-    tokens = parse_and_resolve(rules, text, max_iterations=options.max_iterations)
+    tokens = parse_and_resolve(
+        rules,
+        text,
+        max_iterations=options.max_iterations,
+        time_budget_ms=options.parse_timeout_ms,
+        max_tokens=options.max_tokens,
+    )
     resolved = _resolve_tokens(tokens, context, options)
     if dims is not None:
         wanted = set(dims)
@@ -77,7 +95,13 @@ def analyze(
     """Like `parse`, but returns the full set of resolved tokens (including overlaps)."""
     options = options or Options()
     rules = _collect_rules(context.locale.lang, dims)
-    tokens = parse_and_resolve(rules, text, max_iterations=options.max_iterations)
+    tokens = parse_and_resolve(
+        rules,
+        text,
+        max_iterations=options.max_iterations,
+        time_budget_ms=options.parse_timeout_ms,
+        max_tokens=options.max_tokens,
+    )
     resolved = _resolve_tokens(tokens, context, options)
     if dims is not None:
         wanted = set(dims)

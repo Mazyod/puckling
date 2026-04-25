@@ -101,32 +101,20 @@ def test_repeated_arabic_calls_dont_accumulate_state(ctx_ar):
         parse("الساعة الخامسة مساء", ctx_ar, Options())
 
 
-# Category 5: known-bad cases — currently saturate, asserted via xfail. When the
-# engine is fixed, these will produce an interval entity and the unexpected pass
-# becomes the signal that the regression has been resolved.
-#
-# These tests override pytest-timeout's ``method`` to ``signal`` so SIGALRM can
-# interrupt the runaway parse. The repo-wide default is ``thread`` (set in
-# pyproject.toml) which only dumps a stack trace and would wedge pytest.
+# Category 5: previously-saturating Arabic interval phrases. With the engine's
+# `parse_timeout_ms` budget (default 2 s), the parser bails partway through
+# saturation and surfaces an interval entity from the partial token forest.
+# These tests lock that behavior in: a regression in the budget enforcement
+# would re-introduce the hang.
 
 
-@pytest.mark.xfail(
-    reason="saturation regression: Arabic 'من <day> <month> الى <day> <month>' "
-    "explodes the fixed-point and never produces an interval entity",
-    strict=False,
-)
-@pytest.mark.timeout(3, method="signal")
-def test_arabic_min_date_ila_date_saturation(ctx_ar):
+@pytest.mark.timeout(3)
+def test_arabic_min_date_ila_date_completes_with_budget(ctx_ar):
     out = parse("من 4 ابريل الى 10 ابريل", ctx_ar, Options(), dims=("time",))
-    assert _intervals(out), "expected an interval entity once the engine is fixed"
+    assert _intervals(out), "engine budget should still surface an interval"
 
 
-@pytest.mark.xfail(
-    reason="saturation regression: Arabic '<day> <month> - <day> <month>' "
-    "(dash-separated date interval) saturates the engine",
-    strict=False,
-)
-@pytest.mark.timeout(3, method="signal")
-def test_arabic_date_dash_date_saturation(ctx_ar):
+@pytest.mark.timeout(3)
+def test_arabic_date_dash_date_completes_with_budget(ctx_ar):
     out = parse("4 ابريل - 10 ابريل", ctx_ar, Options(), dims=("time",))
-    assert _intervals(out), "expected an interval entity once the engine is fixed"
+    assert _intervals(out), "engine budget should still surface an interval"

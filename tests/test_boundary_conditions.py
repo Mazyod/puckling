@@ -97,15 +97,15 @@ def test_single_char_space(ctx_en):
 # happens to skip cheaply over Latin filler).
 
 
-@pytest.mark.timeout(0)
-@pytest.mark.xfail(
-    reason="TODO(puckling): edge case — full-grammar parse on ~10K chars of "
-    "English text scales super-linearly (~7s observed) and exceeds the 3s "
-    "boundary timeout. Needs engine-level optimisation.",
-    strict=False,
-    raises=AssertionError,
-)
 def test_very_long_input_does_not_hang(ctx_en):
+    """Long full-grammar parses complete within the engine's wall-clock budget.
+
+    Before `parse_timeout_ms` was introduced, this took ~7s on a 10K-char input
+    because token saturation dominated. The engine now bails at its budget
+    (default 2000 ms) and returns whatever it has, so this consistently finishes
+    in well under 3 s. If a regression slows the budget enforcement, this test
+    catches it.
+    """
     started = time.monotonic()
     parse(_LONG_TEXT_EN, ctx_en, Options())
     elapsed = time.monotonic() - started

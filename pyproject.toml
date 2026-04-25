@@ -37,8 +37,13 @@ filterwarnings = ["error"]
 # Hard per-test wall-clock cap. Without this, a runaway parse (engine token
 # saturation) can wedge a test indefinitely. Override per-test with
 # `@pytest.mark.timeout(N)` when needed.
+#
+# `signal` method uses SIGALRM to interrupt a stuck test and fail it cleanly,
+# leaving the rest of the suite to run. The alternative `thread` method only
+# sets a flag the test loop never checks, then calls `os._exit(1)` — which
+# kills the entire pytest process, not just the bad test. POSIX-only.
 timeout = 5
-timeout_method = "thread"
+timeout_method = "signal"
 
 [tool.ruff]
 line-length = 100
