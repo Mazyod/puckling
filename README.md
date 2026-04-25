@@ -23,9 +23,16 @@ pip install puckling
 
 ```python
 import datetime as dt
-from dataclasses import asdict
 
-from puckling import Context, Lang, Locale, Options, parse
+from puckling import (
+    AmountOfMoneyValue,
+    Context,
+    Lang,
+    Locale,
+    Options,
+    TimeValue,
+    parse,
+)
 
 ctx = Context(
     reference_time=dt.datetime(2013, 2, 12, 4, 30, tzinfo=dt.UTC),
@@ -33,11 +40,33 @@ ctx = Context(
 )
 
 for entity in parse("I'll meet you tomorrow at 5pm for $50", ctx, Options()):
-    print(entity)
-    print(asdict(entity.value))
+    match entity.value:
+        case TimeValue() as tv:
+            print(entity.body, "→", tv.start_datetime(), "to", tv.end_datetime())
+        case AmountOfMoneyValue(value=amount, currency=currency):
+            print(entity.body, "→", amount, currency)
 ```
 
 Switch `Locale(Lang.EN)` to `Locale(Lang.AR)` for Arabic input.
+
+`entity.value` is one of the typed `*Value` dataclasses (`AmountOfMoneyValue`,
+`DistanceValue`, `TimeValue`, …) re-exported from `puckling`. Narrow with
+`isinstance`, `match`, or by passing `dims=("amount_of_money",)` to filter the
+parse to a single dimension. For `TimeValue`, `start_datetime()` and
+`end_datetime()` cover the instant / closed-interval / open-interval cases
+without an isinstance ladder; either may be `None` for an unbounded side.
+
+### Latent matches
+
+Some inputs are only entities under a charitable reading. `parse("on the 5th",
+…)` returns just an ordinal by default. With `with_latent=True` it also
+surfaces a `time` entity for "the 5th of the next month" — flagged
+`latent=True` so callers can demote it:
+
+```python
+parse("on the 5th", ctx, Options())                    # → [Ordinal(5)]
+parse("on the 5th", ctx, Options(with_latent=True))    # → [Time(2013-03-05, latent=True)]
+```
 
 ## Supported dimensions
 
@@ -69,7 +98,7 @@ Puckling mirrors Duckling's parsing model in idiomatic, functional Python:
 - **The engine** is a saturating fixed-point parser that applies rules iteratively until no new tokens appear.
 - **Resolution** is context-aware (reference time, locale) and dimension-specific.
 
-All public types are `@dataclass(frozen=True, slots=True)` — no mutation. Parsed entity values are structured runtime dataclasses; use attributes for typed access or `dataclasses.asdict()` when you need a Python dictionary dump. Cross-dimension references go through predicates (`is_numeral`, `is_grain`, …), never imports, so each rule file stays independent.
+All public types are `@dataclass(frozen=True, slots=True)` — no mutation. Parsed entity values are structured runtime dataclasses; access fields directly. Cross-dimension references go through predicates (`is_numeral`, `is_grain`, …), never imports, so each rule file stays independent.
 
 ## Engine budgets
 

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
+
 from puckling.api import (
     Context,
     DimensionName,
@@ -83,4 +86,7 @@ __all__ = [
     "supported_dimensions",
 ]
 
-__version__ = "0.1.0"
+try:
+    __version__ = _pkg_version("puckling")
+except PackageNotFoundError:  # editable/source checkout without metadata
+    __version__ = "0.0.0+unknown"

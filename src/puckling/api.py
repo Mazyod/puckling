@@ -181,11 +181,15 @@ def analyze(
     return resolved
 
 
-def supported_dimensions() -> tuple[str, ...]:
-    """Return every dimension known to puckling."""
+def supported_dimensions() -> tuple[DimensionName, ...]:
+    """Return every dimension known to puckling.
+
+    The result is typed as `tuple[DimensionName, ...]` so it can be passed
+    straight into `parse(..., dims=...)` without a `cast`.
+    """
     from puckling.dimensions import _registry
 
-    return _registry.known_dimensions()
+    return cast(tuple[DimensionName, ...], _registry.known_dimensions())
 
 
 # ---------------------------------------------------------------------------

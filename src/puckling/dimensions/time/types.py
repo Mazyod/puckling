@@ -102,6 +102,40 @@ class TimeValue:
     alternates: tuple[SingleTimeValue, ...] = ()
     holiday: str | None = None
 
+    def start_datetime(self) -> dt.datetime | None:
+        """The lower bound of `primary`, or `None` if the value is upper-bounded only.
+
+        Saves callers the isinstance ladder over `InstantValue | IntervalValue
+        | OpenIntervalValue`. An instant is its own start; a closed interval
+        returns its `start.value`; an open `BEFORE` interval has no start.
+        """
+        match self.primary:
+            case InstantValue():
+                return self.primary.value
+            case IntervalValue():
+                return self.primary.start.value
+            case OpenIntervalValue(direction=IntervalDirection.AFTER):
+                return self.primary.instant.value
+            case OpenIntervalValue():
+                return None
+
+    def end_datetime(self) -> dt.datetime | None:
+        """The upper bound of `primary`, or `None` if the value is lower-bounded only.
+
+        Instants intentionally return `None` (an instant has a value, not an
+        end); use `start_datetime()` and the instant's `grain` if you need a
+        grain-bounded range.
+        """
+        match self.primary:
+            case InstantValue():
+                return None
+            case IntervalValue():
+                return self.primary.end.value
+            case OpenIntervalValue(direction=IntervalDirection.BEFORE):
+                return self.primary.instant.value
+            case OpenIntervalValue():
+                return None
+
     def to_dict(self) -> dict:
         out: dict = {"type": "value", **self.primary.to_dict()}
         if isinstance(self.primary, IntervalValue) and "from" in out:
