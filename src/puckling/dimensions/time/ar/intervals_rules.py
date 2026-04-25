@@ -68,14 +68,16 @@ class _SpanIdentityMixin:
     """
 
     __slots__ = ()
-    span: object
-    grain: Grain
 
     def __eq__(self, other: object) -> bool:
-        return type(self) is type(other) and self.span == other.span and self.grain == other.grain
+        return (
+            type(self) is type(other)
+            and getattr(self, "span", None) == getattr(other, "span", None)
+            and getattr(self, "grain", None) == getattr(other, "grain", None)
+        )
 
     def __hash__(self) -> int:
-        return hash((type(self).__name__, self.span, self.grain))
+        return hash((type(self).__name__, getattr(self, "span", None), getattr(self, "grain", None)))
 
 
 @dataclass(frozen=True, slots=True, eq=False)

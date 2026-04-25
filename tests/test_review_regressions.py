@@ -28,7 +28,6 @@ from puckling.dimensions.time.helpers import at_day_of_week, time
 from puckling.predicates import is_positive
 from puckling.types import Token
 
-
 # ---------------------------------------------------------------------------
 # Fix 1 — AR time dedupe via stable key.
 

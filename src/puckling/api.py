@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import datetime as dt
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any
 
 from puckling.engine import (
@@ -144,15 +145,19 @@ def _resolve_tokens(
         resolved_value = _resolve_value(tok.value, context)
         if resolved_value is None:
             continue
-        grain = getattr(tok.value, "grain", None)
-        if hasattr(grain, "value"):
-            grain = grain.value
+        raw_grain = getattr(tok.value, "grain", None)
+        if isinstance(raw_grain, Enum) and isinstance(raw_grain.value, str):
+            grain = raw_grain.value
+        elif isinstance(raw_grain, str):
+            grain = raw_grain
+        else:
+            grain = None
         out.append(
             Resolved(
                 range=tok.range,
                 dim=tok.dim,
                 value=resolved_value,
-                grain=grain if isinstance(grain, str) else None,
+                grain=grain,
                 latent=latent,
             )
         )

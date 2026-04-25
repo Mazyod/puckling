@@ -33,6 +33,7 @@ from puckling.dimensions.time.holiday_helpers import computed_holiday
 from puckling.dimensions.time.types import (
     InstantValue,
     IntervalValue,
+    SingleTimeValue,
 )
 from puckling.types import RegexMatch, Rule, Token, predicate, regex
 
@@ -243,7 +244,7 @@ def _resolve_holiday_in_year(rt: RelTime, year: int) -> RelTime:
     year).
     """
 
-    def go(ref: dt.datetime) -> InstantValue | IntervalValue | None:
+    def go(ref: dt.datetime) -> SingleTimeValue | None:
         synthetic_ref = dt.datetime(year, 1, 1, tzinfo=ref.tzinfo)
         v = rt.compute(synthetic_ref)
         if isinstance(v, InstantValue) and v.value.year != year:

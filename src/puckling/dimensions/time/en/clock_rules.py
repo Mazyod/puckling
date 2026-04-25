@@ -274,10 +274,13 @@ def _h_separator_prod(tokens: tuple[Token, ...]) -> Token | None:
     m = tokens[0].value
     if not isinstance(m, RegexMatch):
         return None
-    h = int(m.groups[0])
+    raw_hour = m.groups[0] if len(m.groups) > 0 else None
+    if raw_hour is None:
+        return None
+    h = int(raw_hour)
     if not 0 <= h <= 23:
         return None
-    raw_min = m.groups[1]
+    raw_min = m.groups[1] if len(m.groups) > 1 else None
     if raw_min is None:
         return _tt(hour_value(h, is_12h=False))
     mn = int(raw_min)

@@ -929,10 +929,14 @@ def _hhmm_prod(tokens: tuple[Token, ...]) -> Token | None:
     m = tokens[0].value
     if not isinstance(m, RegexMatch):
         return None
+    raw_hour = m.groups[0] if len(m.groups) > 0 else None
+    raw_minute = m.groups[1] if len(m.groups) > 1 else None
+    if raw_hour is None or raw_minute is None:
+        return None
     try:
-        h = int(m.groups[0])
-        mn = int(m.groups[1])
-    except (ValueError, IndexError):
+        h = int(raw_hour)
+        mn = int(raw_minute)
+    except ValueError:
         return None
     return _tt(hour_minute_value(h, mn, is_12h=(h != 0 and h < 12)))
 
@@ -948,11 +952,16 @@ def _hhmmss_prod(tokens: tuple[Token, ...]) -> Token | None:
     m = tokens[0].value
     if not isinstance(m, RegexMatch):
         return None
+    raw_hour = m.groups[0] if len(m.groups) > 0 else None
+    raw_minute = m.groups[1] if len(m.groups) > 1 else None
+    raw_second = m.groups[2] if len(m.groups) > 2 else None
+    if raw_hour is None or raw_minute is None or raw_second is None:
+        return None
     try:
-        h = int(m.groups[0])
-        mn = int(m.groups[1])
-        s = int(m.groups[2])
-    except (ValueError, IndexError):
+        h = int(raw_hour)
+        mn = int(raw_minute)
+        s = int(raw_second)
+    except ValueError:
         return None
     return _tt(hour_minute_second_value(h, mn, s, is_12h=(h < 12)))
 
@@ -970,12 +979,16 @@ def _hhmm_am_pm_prod(tokens: tuple[Token, ...]) -> Token | None:
     suffix = tokens[1].value
     if not isinstance(digits, RegexMatch) or not isinstance(suffix, RegexMatch):
         return None
-    try:
-        h = int(digits.groups[0])
-    except (ValueError, IndexError):
+    raw_hour = digits.groups[0] if len(digits.groups) > 0 else None
+    raw_minute = digits.groups[1] if len(digits.groups) > 1 else None
+    if raw_hour is None:
         return None
-    has_minutes = digits.groups[1] is not None
-    mn = int(digits.groups[1]) if has_minutes else 0
+    try:
+        h = int(raw_hour)
+    except ValueError:
+        return None
+    has_minutes = raw_minute is not None
+    mn = int(raw_minute) if raw_minute is not None else 0
     is_am = suffix.text.lower().startswith("a")
     if h > 12:
         return None

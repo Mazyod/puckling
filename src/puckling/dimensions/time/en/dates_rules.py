@@ -110,13 +110,27 @@ def _iso_timestamp_prod(tokens: tuple[Token, ...]) -> Token | None:
     m = tokens[0].value
     if not isinstance(m, RegexMatch):
         return None
+    raw_year = m.groups[0] if len(m.groups) > 0 else None
+    raw_month = m.groups[1] if len(m.groups) > 1 else None
+    raw_day = m.groups[2] if len(m.groups) > 2 else None
+    raw_hour = m.groups[3] if len(m.groups) > 3 else None
+    raw_minute = m.groups[4] if len(m.groups) > 4 else None
+    raw_second = m.groups[5] if len(m.groups) > 5 else None
+    if (
+        raw_year is None
+        or raw_month is None
+        or raw_day is None
+        or raw_hour is None
+        or raw_minute is None
+    ):
+        return None
     try:
-        y = int(m.groups[0])
-        mo = int(m.groups[1])
-        d = int(m.groups[2])
-        h = int(m.groups[3])
-        mi = int(m.groups[4])
-        s = int(m.groups[5]) if m.groups[5] is not None else 0
+        y = int(raw_year)
+        mo = int(raw_month)
+        d = int(raw_day)
+        h = int(raw_hour)
+        mi = int(raw_minute)
+        s = int(raw_second) if raw_second is not None else 0
     except (ValueError, IndexError, TypeError):
         return None
     try:

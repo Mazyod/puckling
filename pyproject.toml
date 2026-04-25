@@ -21,7 +21,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/facebook/duckling"
+Homepage = "https://github.com/mazyod/puckling"
+Repository = "https://github.com/mazyod/puckling"
+Documentation = "https://github.com/mazyod/puckling"
 
 [build-system]
 requires = ["hatchling"]
