@@ -11,6 +11,13 @@ from collections.abc import Callable
 
 from puckling.types import Predicate, Token
 
+_EXACT_DIM_ATTR = "__puckling_exact_dim__"
+
+
+def _with_exact_dim(fn: Predicate, dim: str) -> Predicate:
+    setattr(fn, _EXACT_DIM_ATTR, dim)
+    return fn
+
 
 def is_dim(name: str) -> Predicate:
     """Match any token of the given dimension name."""
@@ -18,7 +25,7 @@ def is_dim(name: str) -> Predicate:
     def go(t: Token) -> bool:
         return t.dim == name
 
-    return go
+    return _with_exact_dim(go, name)
 
 
 def has_attr(attr: str, value: object) -> Predicate:
@@ -126,3 +133,9 @@ def is_multipliable(t: Token) -> bool:
 
 
 _SENTINEL = object()
+
+_with_exact_dim(is_numeral, "numeral")
+_with_exact_dim(is_ordinal, "ordinal")
+_with_exact_dim(is_time, "time")
+_with_exact_dim(is_duration, "duration")
+_with_exact_dim(is_grain, "time_grain")
