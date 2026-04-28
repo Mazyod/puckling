@@ -57,8 +57,14 @@ def _import_rules_modules(pkg_name: str) -> list:
     return out
 
 
+@cache
 def rules_for(lang: Lang, dims: tuple[str, ...] | None) -> tuple[Rule, ...]:
-    """Aggregate `RULES` across all dimensions (or only those in `dims`) for `lang`."""
+    """Aggregate `RULES` across all dimensions (or only those in `dims`) for `lang`.
+
+    Cached on `(lang, dims)`. The module set is static at runtime, so any
+    workload that calls `parse()` repeatedly with the same locale + dim
+    filter pays the import-machinery cost only once.
+    """
     rules: list[Rule] = []
     targets = dims if dims is not None else known_dimensions()
     lang_seg = lang.value.lower()
