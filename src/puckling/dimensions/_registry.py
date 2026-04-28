@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import importlib
 import pkgutil
-from functools import cache
+from functools import cache, lru_cache
 
 from puckling.locale import Lang
 from puckling.types import Rule
@@ -57,8 +57,15 @@ def _import_rules_modules(pkg_name: str) -> list:
     return out
 
 
+@lru_cache(maxsize=64)
 def rules_for(lang: Lang, dims: tuple[str, ...] | None) -> tuple[Rule, ...]:
-    """Aggregate `RULES` across all dimensions (or only those in `dims`) for `lang`."""
+    """Aggregate `RULES` across all dimensions (or only those in `dims`) for `lang`.
+
+    Cached on `(lang, dims)`. The module set is static at runtime, so any
+    workload that calls `parse()` repeatedly with the same locale + dim
+    filter pays the import-machinery cost only once. Bounded as defense in
+    depth — cardinality is `|Lang| × subsets-of-dims`, so `64` is generous.
+    """
     rules: list[Rule] = []
     targets = dims if dims is not None else known_dimensions()
     lang_seg = lang.value.lower()

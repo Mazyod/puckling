@@ -29,8 +29,9 @@ far. Callers ranking the results still get a valid (possibly partial) parse.
 from __future__ import annotations
 
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import replace
+from functools import lru_cache
 
 from puckling.types import (
     Pattern,
@@ -41,6 +42,12 @@ from puckling.types import (
     Rule,
     Token,
 )
+
+# A specialized matcher function: given the source text, a position, and the
+# current token-by-start index, yield tokens that match this pattern slot.
+# Built once per pattern item via `_make_matcher` and cached, so the hot
+# loop pays no `isinstance` per probe.
+_Matcher = Callable[[str, int, dict[int, list[Token]]], Iterator[Token]]
 
 # Maximum saturation iterations — guards against pathological rule sets.
 DEFAULT_MAX_ITERATIONS = 50
@@ -64,65 +71,157 @@ def _skip_whitespace(text: str, pos: int) -> int:
     return pos
 
 
-def _match_item_at(
-    item: PatternItem,
-    text: str,
-    pos: int,
-    tokens: list[Token],
-) -> Iterator[Token]:
-    """Yield tokens matching `item` anchored at exactly `pos`."""
+def _make_matcher(item: PatternItem) -> _Matcher:
+    """Specialize a matcher function for one pattern slot.
+
+    Closes over the regex / predicate so the hot loop calls it directly
+    without re-checking the slot type per probe. See PERF_FINDINGS.md for
+    measurements.
+    """
     if isinstance(item, RegexItem):
-        assert item.compiled is not None
-        m = item.compiled.match(text, pos=pos)
-        if m is not None and m.end() > m.start():
-            yield Token(
-                dim="regex_match",
-                value=RegexMatch(text=m.group(0), groups=tuple(m.groups())),
-                range=Range(m.start(), m.end()),
-            )
-        return
+        compiled = item.compiled
+        assert compiled is not None
+
+        def _match_regex(
+            text: str, pos: int, tokens_by_start: dict[int, list[Token]]
+        ) -> Iterator[Token]:
+            m = compiled.match(text, pos=pos)
+            if m is not None and m.end() > m.start():
+                yield Token(
+                    dim="regex_match",
+                    value=RegexMatch(text=m.group(0), groups=tuple(m.groups())),
+                    range=Range(m.start(), m.end()),
+                )
+
+        return _match_regex
+
     # PredicateItem
-    for tok in tokens:
-        if tok.range.start == pos and item.fn(tok):
-            yield tok
+    fn = item.fn
+
+    def _match_predicate(
+        text: str, pos: int, tokens_by_start: dict[int, list[Token]]
+    ) -> Iterator[Token]:
+        bucket = tokens_by_start.get(pos)
+        if bucket is None:
+            return
+        for tok in bucket:
+            if fn(tok):
+                yield tok
+
+    return _match_predicate
+
+
+@lru_cache(maxsize=4096)
+def _matchers_for_pattern(pattern: Pattern) -> tuple[_Matcher, ...]:
+    """One matcher per pattern slot, cached by pattern identity.
+
+    Bounded purely as defense in depth — puckling's static rule set has
+    only a few hundred distinct patterns.
+    """
+    return tuple(_make_matcher(item) for item in pattern)
 
 
 def _match_pattern_from(
-    pattern: Pattern,
+    matchers: tuple[_Matcher, ...],
     text: str,
     pos: int,
-    tokens: list[Token],
+    tokens_by_start: dict[int, list[Token]],
 ) -> Iterator[tuple[Token, ...]]:
-    """Yield every full match of `pattern` starting at `pos`."""
-    if not pattern:
+    """Yield every full match of `matchers` starting at `pos`."""
+    if not matchers:
         yield ()
         return
-    head, tail = pattern[0], pattern[1:]
-    for tok in _match_item_at(head, text, pos, tokens):
+    head, tail = matchers[0], matchers[1:]
+    for tok in head(text, pos, tokens_by_start):
         next_pos = _skip_whitespace(text, tok.range.end)
-        for rest in _match_pattern_from(tail, text, next_pos, tokens):
+        for rest in _match_pattern_from(tail, text, next_pos, tokens_by_start):
             yield (tok, *rest)
 
 
-def _apply_rule(rule: Rule, text: str, tokens: list[Token]) -> list[Token]:
+def _apply_rule(
+    rule: Rule, text: str, tokens_by_start: dict[int, list[Token]]
+) -> list[Token]:
     """Run `rule` against `text + tokens`, returning newly produced tokens.
 
-    Deadline enforcement happens at the outer saturation loop, not here —
-    a single rule might overrun the budget by one iteration's worth of work,
-    but the per-position `time.monotonic()` check that used to live here was
-    ~6% of total parse cost. `max_tokens` still bounds token explosion.
+    Specialises three cases for performance:
+
+    1. Single-item regex pattern → drive with a single overlapped `finditer`
+       call instead of `n+1` anchored `regex.match` calls. Roughly the cost
+       of one regex sweep instead of `n+1`.
+    2. Single-item predicate pattern → iterate only token start positions
+       (from `tokens_by_start`) instead of every text position.
+    3. Multi-item pattern → fall back to the general per-position match.
+
+    The single-item fast paths intentionally inline the matching logic
+    that `_make_matcher` would otherwise wrap in a closure — keep them in
+    sync if you change one. Factoring them through the matcher framework
+    re-imposes the closure call overhead the specialization is meant to
+    avoid.
     """
+    pattern = rule.pattern
+    matchers = _matchers_for_pattern(pattern)
     out: list[Token] = []
+    name = rule.name
+    prod = rule.prod
+
+    if len(matchers) == 1:
+        head_item = pattern[0]
+        if isinstance(head_item, RegexItem):
+            compiled = head_item.compiled
+            assert compiled is not None
+            for m in compiled.finditer(text, overlapped=True):
+                if m.end() == m.start():
+                    continue
+                tok = Token(
+                    dim="regex_match",
+                    value=RegexMatch(text=m.group(0), groups=tuple(m.groups())),
+                    range=Range(m.start(), m.end()),
+                )
+                produced = prod((tok,))
+                if produced is None:
+                    continue
+                out.append(replace(produced, range=tok.range, produced_by=name))
+            return out
+
+        # PredicateItem — iterate only positions where tokens exist.
+        # Visit positions in text order to preserve the ordering the original
+        # `for start in range(n+1)` loop produced. `tokens_by_start.items()`
+        # would be insertion-order (i.e. token-production order across earlier
+        # rules), which would change `analyze()` output order and which tokens
+        # survive a `max_tokens` truncation.
+        fn = head_item.fn
+        for start in sorted(tokens_by_start):
+            for tok in tokens_by_start[start]:
+                if fn(tok):
+                    produced = prod((tok,))
+                    if produced is None:
+                        continue
+                    out.append(
+                        replace(produced, range=tok.range, produced_by=name)
+                    )
+        return out
+
     n = len(text)
     for start in range(n + 1):
-        for matched in _match_pattern_from(rule.pattern, text, start, tokens):
+        for matched in _match_pattern_from(matchers, text, start, tokens_by_start):
             if not matched:
                 continue
-            produced = rule.prod(matched)
+            produced = prod(matched)
             if produced is None:
                 continue
             full_range = Range(matched[0].range.start, matched[-1].range.end)
-            out.append(replace(produced, range=full_range, produced_by=rule.name))
+            out.append(replace(produced, range=full_range, produced_by=name))
+    return out
+
+
+def _index_tokens_by_start(tokens: list[Token]) -> dict[int, list[Token]]:
+    out: dict[int, list[Token]] = {}
+    for t in tokens:
+        bucket = out.get(t.range.start)
+        if bucket is None:
+            out[t.range.start] = [t]
+        else:
+            bucket.append(t)
     return out
 
 
@@ -159,15 +258,16 @@ def parse_and_resolve(
                 break
             if len(tokens) >= max_tokens:
                 break
+            # Rebuild the start-position index once per saturation pass.
+            # Rules within the same pass see the same snapshot, so this is
+            # safe to cache across the inner rule loop.
+            tokens_by_start = _index_tokens_by_start(tokens)
             new_tokens: list[Token] = []
             for rule in rules:
-                # Coarse deadline check at rule boundaries — cheap (~200/iter)
-                # and still bails out long-input parses within a rule's worth
-                # of extra work. Finer-grained per-position checks used to live
-                # inside `_apply_rule` and were ~6% of total parse cost.
+                # Coarse deadline check at rule boundaries — cheap (~200/iter).
                 if deadline is not None and time.monotonic() > deadline:
                     raise _ParseBudgetExceeded()
-                for tok in _apply_rule(rule, text, tokens):
+                for tok in _apply_rule(rule, text, tokens_by_start):
                     key = _token_key(tok)
                     if key in seen:
                         continue
