@@ -31,7 +31,7 @@ from __future__ import annotations
 import time
 from collections.abc import Callable, Iterator
 from dataclasses import replace
-from functools import cache
+from functools import lru_cache
 
 from puckling.types import (
     Pattern,
@@ -75,8 +75,8 @@ def _make_matcher(item: PatternItem) -> _Matcher:
     """Specialize a matcher function for one pattern slot.
 
     Closes over the regex / predicate so the hot loop calls it directly
-    without re-checking the slot type every time. ~2.3M `isinstance` calls
-    per parse on long inputs go away.
+    without re-checking the slot type per probe. See PERF_FINDINGS.md for
+    measurements.
     """
     if isinstance(item, RegexItem):
         compiled = item.compiled
@@ -111,9 +111,13 @@ def _make_matcher(item: PatternItem) -> _Matcher:
     return _match_predicate
 
 
-@cache
+@lru_cache(maxsize=4096)
 def _matchers_for_pattern(pattern: Pattern) -> tuple[_Matcher, ...]:
-    """One matcher per pattern slot, cached by pattern identity."""
+    """One matcher per pattern slot, cached by pattern identity.
+
+    Bounded purely as defense in depth — puckling's static rule set has
+    only a few hundred distinct patterns.
+    """
     return tuple(_make_matcher(item) for item in pattern)
 
 
@@ -147,6 +151,12 @@ def _apply_rule(
     2. Single-item predicate pattern → iterate only token start positions
        (from `tokens_by_start`) instead of every text position.
     3. Multi-item pattern → fall back to the general per-position match.
+
+    The single-item fast paths intentionally inline the matching logic
+    that `_make_matcher` would otherwise wrap in a closure — keep them in
+    sync if you change one. Factoring them through the matcher framework
+    re-imposes the closure call overhead the specialization is meant to
+    avoid.
     """
     pattern = rule.pattern
     matchers = _matchers_for_pattern(pattern)
