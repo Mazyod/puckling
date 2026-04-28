@@ -2,10 +2,26 @@
 
 from __future__ import annotations
 
+from typing import Any, cast
+
+import regex as regex_lib
+
 from puckling.dimensions.numeral.types import NumeralValue
 from puckling.engine import parse_and_resolve
 from puckling.predicates import is_numeral, number_between
-from puckling.types import Range, Rule, Token, regex
+from puckling.types import Range, RegexItem, Rule, Token, predicate, regex
+
+
+class _CountingCompiledRegex:
+    def __init__(self, pattern: str) -> None:
+        self._compiled = regex_lib.compile(
+            pattern, flags=regex_lib.IGNORECASE | regex_lib.UNICODE
+        )
+        self.match_calls = 0
+
+    def match(self, text: str, *, pos: int = 0):
+        self.match_calls += 1
+        return self._compiled.match(text, pos=pos)
 
 
 def _digit_rule() -> Rule:
@@ -91,3 +107,57 @@ def test_engine_assigns_correct_ranges():
     longest = max(nums, key=lambda t: t.range.length)
     assert longest.range == Range(4, 6)
     assert text[longest.range.start : longest.range.end] == "42"
+
+
+def test_multi_item_regex_match_is_cached_across_saturation_passes():
+    def seed_prod(tokens: tuple[Token, ...]) -> Token | None:
+        return Token(dim="seed", value=tokens[0].value.text)
+
+    def pair_prod(tokens: tuple[Token, ...]) -> Token | None:
+        return Token(dim="pair", value=(tokens[0].value, tokens[1].value.text))
+
+    counting_regex = _CountingCompiledRegex("b")
+    rules = (
+        Rule(name="seed", pattern=(regex("a"),), prod=seed_prod),
+        Rule(
+            name="seed then b",
+            pattern=(
+                predicate(lambda tok: tok.dim == "seed", "seed"),
+                RegexItem(pattern="b", compiled=cast(Any, counting_regex)),
+            ),
+            prod=pair_prod,
+        ),
+    )
+
+    out = parse_and_resolve(rules, "ab")
+
+    pairs = [tok for tok in out if tok.dim == "pair"]
+    assert len(pairs) == 1
+    assert pairs[0].range == Range(0, 2)
+    assert counting_regex.match_calls == 1
+
+
+def test_text_only_rules_run_once_after_initial_saturation_pass():
+    text_only_calls = 0
+
+    def seed_prod(tokens: tuple[Token, ...]) -> Token | None:
+        nonlocal text_only_calls
+        text_only_calls += 1
+        return Token(dim="seed", value=tokens[0].value.text)
+
+    def derived_prod(tokens: tuple[Token, ...]) -> Token | None:
+        return Token(dim="derived", value=tokens[0].value)
+
+    rules = (
+        Rule(name="seed", pattern=(regex("a"),), prod=seed_prod),
+        Rule(
+            name="derived",
+            pattern=(predicate(lambda tok: tok.dim == "seed", "seed"),),
+            prod=derived_prod,
+        ),
+    )
+
+    out = parse_and_resolve(rules, "a")
+
+    assert [tok.dim for tok in out] == ["seed", "derived"]
+    assert text_only_calls == 1
