@@ -184,9 +184,14 @@ def _apply_rule(
             return out
 
         # PredicateItem — iterate only positions where tokens exist.
+        # Visit positions in text order to preserve the ordering the original
+        # `for start in range(n+1)` loop produced. `tokens_by_start.items()`
+        # would be insertion-order (i.e. token-production order across earlier
+        # rules), which would change `analyze()` output order and which tokens
+        # survive a `max_tokens` truncation.
         fn = head_item.fn
-        for start, bucket in tokens_by_start.items():
-            for tok in bucket:
+        for start in sorted(tokens_by_start):
+            for tok in tokens_by_start[start]:
                 if fn(tok):
                     produced = prod((tok,))
                     if produced is None:
