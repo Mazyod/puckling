@@ -11,3 +11,6 @@ wheels/
 
 # Claude Code agent worktrees, plans, and other local state
 .claude/
+
+# Local benchmark results
+bench/results/

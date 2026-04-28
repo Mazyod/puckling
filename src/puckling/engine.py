@@ -104,22 +104,17 @@ def _match_pattern_from(
             yield (tok, *rest)
 
 
-def _apply_rule(
-    rule: Rule,
-    text: str,
-    tokens: list[Token],
-    deadline: float | None,
-) -> list[Token]:
+def _apply_rule(rule: Rule, text: str, tokens: list[Token]) -> list[Token]:
     """Run `rule` against `text + tokens`, returning newly produced tokens.
 
-    Checks `deadline` once per starting position. The amortized check overhead
-    is negligible (single `time.monotonic()` call per outer iteration).
+    Deadline enforcement happens at the outer saturation loop, not here —
+    a single rule might overrun the budget by one iteration's worth of work,
+    but the per-position `time.monotonic()` check that used to live here was
+    ~6% of total parse cost. `max_tokens` still bounds token explosion.
     """
     out: list[Token] = []
     n = len(text)
     for start in range(n + 1):
-        if deadline is not None and time.monotonic() > deadline:
-            raise _ParseBudgetExceeded()
         for matched in _match_pattern_from(rule.pattern, text, start, tokens):
             if not matched:
                 continue
@@ -166,9 +161,13 @@ def parse_and_resolve(
                 break
             new_tokens: list[Token] = []
             for rule in rules:
+                # Coarse deadline check at rule boundaries — cheap (~200/iter)
+                # and still bails out long-input parses within a rule's worth
+                # of extra work. Finer-grained per-position checks used to live
+                # inside `_apply_rule` and were ~6% of total parse cost.
                 if deadline is not None and time.monotonic() > deadline:
                     raise _ParseBudgetExceeded()
-                for tok in _apply_rule(rule, text, tokens, deadline):
+                for tok in _apply_rule(rule, text, tokens):
                     key = _token_key(tok)
                     if key in seen:
                         continue
