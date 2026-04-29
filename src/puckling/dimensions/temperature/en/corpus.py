@@ -18,11 +18,11 @@ from puckling.corpus import Example, examples
 CORPUS: tuple[Example, ...] = (
     examples(
         {"value": 37, "unit": "celsius", "type": "value"},
-        ["37°C", "37 ° celsius", "37 degrees Celsius"],
+        ["37°C", "37C", "37 C", "37 ° celsius", "37 degrees Celsius"],
     ),
     examples(
         {"value": 70, "unit": "fahrenheit", "type": "value"},
-        ["70°F", "70 ° Fahrenheit", "70 degrees F"],
+        ["70°F", "70F", "70 Fahrenheit", "70 ° Fahrenheit", "70 degrees F"],
     ),
     examples(
         {"value": 98.6, "unit": "fahrenheit", "type": "value"},
@@ -55,15 +55,23 @@ CORPUS: tuple[Example, ...] = (
             "from 30 celsius and 40 celsius",
             "between 30 and 40 degrees celsius",
             "from 30 degrees celsius to 40 degrees celsius",
+            "from 30 to 40 degrees celsius",
             "30-40 degrees celsius",
+            "30 - 40 degrees celsius",
         ],
     ),
     examples(
         {"type": "interval", "from": {"value": 40, "unit": "degree"}},
-        ["over 40 degrees", "at least 40 degrees", "more than 40 degrees"],
+        ["over 40 degrees", "above 40 degrees", "at least 40 degrees", "more than 40 degrees"],
     ),
     examples(
         {"type": "interval", "to": {"value": 40, "unit": "degree"}},
-        ["under 40 degrees", "less than 40 degrees", "lower than 40 degrees"],
+        [
+            "under 40 degrees",
+            "less than 40 degrees",
+            "lower than 40 degrees",
+            "no more than 40 degrees",
+            "not more than 40 degrees",
+        ],
     ),
 )

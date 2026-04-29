@@ -22,3 +22,20 @@ def test_holidays_corpus(phrase: str, expected: dict, ctx_ar) -> None:
     assert any(value_matches(e.value, expected) for e in entities), (
         f"{phrase!r} resolved to {[e.value for e in entities]}, expected {expected}"
     )
+
+
+@pytest.mark.parametrize(
+    "phrase",
+    [
+        "عيد سعيد",
+        "عيد ميلاد سعيد",
+        "يوم وطني جميل",
+        "رأس السنة الدراسية",
+        "المولد الكهربائي",
+        "عاشوراءيات",
+        "عيد العمالة",
+        "رمضان كريم",
+    ],
+)
+def test_negative_cases(phrase: str, ctx_ar) -> None:
+    assert parse(phrase, ctx_ar, Options(with_latent=True), dims=("time",)) == []

@@ -16,6 +16,10 @@ CORPUS: tuple[Example, ...] = (
         ["2 cups"],
     ),
     examples(
+        {"value": 1.0, "unit": "cup", "type": "value"},
+        ["1 cup", "a cup"],
+    ),
+    examples(
         {"value": 3.0, "unit": "cup", "type": "value", "product": "sugar"},
         ["3 Cups of sugar", "3 cups of sugar"],
     ),
@@ -25,7 +29,7 @@ CORPUS: tuple[Example, ...] = (
     ),
     examples(
         {"value": 2.0, "unit": "gram", "type": "value"},
-        ["2 grams", "2 g.", "2 gs"],
+        ["2 grams", "2 g", "2 g.", "2 gs"],
     ),
     examples(
         {"value": 1.0, "unit": "gram", "type": "value"},
@@ -40,12 +44,20 @@ CORPUS: tuple[Example, ...] = (
         ["a Pound", "1 lb", "a lb"],
     ),
     examples(
+        {"value": 2.0, "unit": "pound", "type": "value"},
+        ["2 lbs", "2 pounds"],
+    ),
+    examples(
         {"value": 2.0, "unit": "pound", "type": "value", "product": "meat"},
         ["2 pounds of meat"],
     ),
     examples(
         {"value": 2.0, "unit": "ounce", "type": "value"},
         ["2 ounces", "2 oz"],
+    ),
+    examples(
+        {"value": 1.0, "unit": "ounce", "type": "value"},
+        ["an ounce", "1 oz", "an oz"],
     ),
     examples(
         {"value": 4.0, "unit": "ounce", "type": "value", "product": "chocolate"},

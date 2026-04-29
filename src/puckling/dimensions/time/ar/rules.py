@@ -36,6 +36,25 @@ from puckling.types import Rule, Token, predicate, regex
 # ---------------------------------------------------------------------------
 # Helpers internal to this module.
 
+_WORD_BOUNDARY_LEFT = r"(?:(?<![\p{L}\p{N}_])|(?<=و))"
+_WORD_BOUNDARY_RIGHT = r"(?![\p{L}\p{N}_])"
+_NUMERIC_BOUNDARY_LEFT = r"(?<![\p{L}\p{N}_:/\-])"
+_NUMERIC_BOUNDARY_RIGHT = r"(?![\p{L}\p{N}_:/\-])"
+_CLOCK_BOUNDARY_LEFT = r"(?<![\p{L}\p{N}_:.])"
+_CLOCK_BOUNDARY_RIGHT = r"(?![\p{L}\p{N}_])(?!(?:[:.][0-9٠-٩]))"
+
+
+def _word_re(pattern: str) -> str:
+    return rf"{_WORD_BOUNDARY_LEFT}(?:{pattern}){_WORD_BOUNDARY_RIGHT}"
+
+
+def _numeric_re(pattern: str) -> str:
+    return rf"{_NUMERIC_BOUNDARY_LEFT}(?:{pattern}){_NUMERIC_BOUNDARY_RIGHT}"
+
+
+def _clock_re(pattern: str) -> str:
+    return rf"{_CLOCK_BOUNDARY_LEFT}(?:{pattern}){_CLOCK_BOUNDARY_RIGHT}"
+
 
 def _t(td: TimeData, *, key: tuple = ()) -> Token:
     """Wrap a foundation `TimeData` so `resolve()` produces the corpus-shaped dict.
@@ -71,14 +90,14 @@ def _relative_day_rule(name: str, pattern: str, offset_days: int) -> Rule:
     def prod(_: tuple[Token, ...]) -> Token:
         return _v(RelativeDayTime(offset_days=offset_days))
 
-    return Rule(name=name, pattern=(regex(pattern),), prod=prod)
+    return Rule(name=name, pattern=(regex(_word_re(pattern)),), prod=prod)
 
 
 def _relative_grain_rule(name: str, pattern: str, grain: Grain, offset: int) -> Rule:
     def prod(_: tuple[Token, ...]) -> Token:
         return _v(RelativeGrainTime(grain=grain, offset=offset))
 
-    return Rule(name=name, pattern=(regex(pattern),), prod=prod)
+    return Rule(name=name, pattern=(regex(_word_re(pattern)),), prod=prod)
 
 
 _RELATIVE_DAYS: tuple[tuple[str, str, int], ...] = (
@@ -121,7 +140,7 @@ def _make_dow_rule(name: str, pattern: str, weekday: int) -> Rule:
     def prod(_: tuple[Token, ...]) -> Token:
         return _t(_day_of_week(weekday), key=("dow", weekday))
 
-    return Rule(name=f"day-of-week:{name}", pattern=(regex(pattern),), prod=prod)
+    return Rule(name=f"day-of-week:{name}", pattern=(regex(_word_re(pattern)),), prod=prod)
 
 
 # ---------------------------------------------------------------------------
@@ -147,7 +166,7 @@ def _make_month_rule(name: str, pattern: str, m: int) -> Rule:
     def prod(_: tuple[Token, ...]) -> Token:
         return _t(time(at_month(m), Grain.MONTH), key=("month", m))
 
-    return Rule(name=f"month:{name}", pattern=(regex(pattern),), prod=prod)
+    return Rule(name=f"month:{name}", pattern=(regex(_word_re(pattern)),), prod=prod)
 
 
 # ---------------------------------------------------------------------------
@@ -194,8 +213,12 @@ def _prod_hh_mm(matched: tuple[Token, ...]) -> Token | None:
     g = matched[0].value.groups
     if len(g) < 2 or g[0] is None or g[1] is None:
         return None
-    # Regex constrains both groups to valid hour/minute ASCII digits.
-    return _v(TimeOfDayValue(hour=int(g[0]), minute=int(g[1])))
+    hour = parse_arabic_int(g[0])
+    minute = parse_arabic_int(g[1])
+    # Dot-separated zero-hour clocks look like decimal amounts, e.g. 0.10.
+    if hour == 0 and "." in matched[0].value.text:
+        return None
+    return _v(TimeOfDayValue(hour=hour, minute=minute))
 
 
 # ---------------------------------------------------------------------------
@@ -284,29 +307,33 @@ RULES: tuple[Rule, ...] = (
     Rule(
         name="hh:mm",
         pattern=(
-            regex(r"((?:[01]?[0-9])|(?:2[0-3]))[:.]([0-5][0-9])"),
+            regex(_clock_re(r"((?:[01]?[0-9])|(?:2[0-3]))[:.]([0-5][0-9])")),
         ),
         prod=_prod_hh_mm,
     ),
     # Year (4-digit) ---------------------------------------------------------
-    Rule(name="year (4 digits)", pattern=(regex(r"[12][0-9]{3}"),), prod=_prod_year),
+    Rule(name="year (4 digits)", pattern=(regex(_numeric_re(r"[12][0-9]{3}")),), prod=_prod_year),
     # In/Ago days ------------------------------------------------------------
     Rule(
         name="in <n> days",
-        pattern=(regex(rf"(?:في|بعد|خلال)\s+{_INT_RE}\s+(?:أيام|ايام|يوم|يوما?|يومين)"),),
+        pattern=(
+            regex(_word_re(rf"(?:في|بعد|خلال)\s+{_INT_RE}\s+(?:أيام|ايام|يوم|يوما?|يومين)")),
+        ),
         prod=_prod_in_days,
     ),
     Rule(
         name="<n> days ago",
-        pattern=(regex(rf"قبل\s+{_INT_RE}\s+(?:أيام|ايام|يوم|يوما?|يومين)"),),
+        pattern=(
+            regex(_word_re(rf"قبل\s+{_INT_RE}\s+(?:أيام|ايام|يوم|يوما?|يومين)")),
+        ),
         prod=_prod_days_ago,
     ),
     # Holidays ---------------------------------------------------------------
-    Rule(name="Eid al-Fitr", pattern=(regex(r"عيد ال[فق]طر"),), prod=_prod_eid_al_fitr),
-    Rule(name="Eid al-Adha", pattern=(regex(r"عيد ال[أا]ضحى"),), prod=_prod_eid_al_adha),
+    Rule(name="Eid al-Fitr", pattern=(regex(_word_re(r"عيد ال[فق]طر")),), prod=_prod_eid_al_fitr),
+    Rule(name="Eid al-Adha", pattern=(regex(_word_re(r"عيد ال[أا]ضحى")),), prod=_prod_eid_al_adha),
     Rule(
         name="Islamic New Year",
-        pattern=(regex(r"ر[أا]س السن[ةه] الهجري[ةه]"),),
+        pattern=(regex(_word_re(r"ر[أا]س السن[ةه] الهجري[ةه]")),),
         prod=_prod_islamic_new_year,
     ),
     # TODO(puckling): edge case — intervals (Ramadan period, "between X and Y").

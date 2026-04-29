@@ -159,6 +159,19 @@ class OpenIntervalAfter(_SpanIdentityMixin):
 # ---------------------------------------------------------------------------
 # Generic helpers
 
+_WORD_BOUNDARY_LEFT = r"(?:(?<![\p{L}\p{N}_])|(?<=و))"
+_WORD_BOUNDARY_RIGHT = r"(?![\p{L}\p{N}_])"
+_DATE_BOUNDARY_LEFT = r"(?<![\p{L}\p{N}_/\-])"
+_DATE_BOUNDARY_RIGHT = r"(?![\p{L}\p{N}_/\-])"
+
+
+def _word_re(pattern: str) -> str:
+    return rf"{_WORD_BOUNDARY_LEFT}(?:{pattern}){_WORD_BOUNDARY_RIGHT}"
+
+
+def _date_re(pattern: str) -> str:
+    return rf"{_DATE_BOUNDARY_LEFT}(?:{pattern}){_DATE_BOUNDARY_RIGHT}"
+
 
 def _t(td: TimeData, *, key: tuple = ()) -> Token:
     return Token(dim="time", value=WrappedTimeData(inner=td, key=key))
@@ -443,9 +456,9 @@ RULES: tuple[Rule, ...] = (
     Rule(
         name="between <X> and <Y>",
         pattern=(
-            regex(r"بين"),
+            regex(_word_re(r"بين")),
             predicate(_is_instant_time, "is_instant_time"),
-            regex(r"و"),
+            regex(_word_re(r"و")),
             predicate(_is_instant_time, "is_instant_time"),
         ),
         prod=_prod_closed_interval,
@@ -453,7 +466,7 @@ RULES: tuple[Rule, ...] = (
     Rule(
         name="from <X> to <Y>",
         pattern=(
-            regex(r"من"),
+            regex(_word_re(r"من")),
             predicate(_is_instant_time, "is_instant_time"),
             regex(_INTERVAL_CONNECT),
             predicate(_is_instant_time, "is_instant_time"),
@@ -464,7 +477,7 @@ RULES: tuple[Rule, ...] = (
     Rule(
         name="until <X>",
         pattern=(
-            regex(r"قبل|حتى|[إا]لى"),
+            regex(_word_re(r"قبل|حتى|[إا]لى")),
             predicate(_is_instant_time, "is_instant_time"),
         ),
         prod=_prod_until,
@@ -472,7 +485,7 @@ RULES: tuple[Rule, ...] = (
     Rule(
         name="after <X>",
         pattern=(
-            regex(r"بعد|منذ"),
+            regex(_word_re(r"بعد|منذ")),
             predicate(_is_instant_time, "is_instant_time"),
         ),
         prod=_prod_after,
@@ -481,20 +494,20 @@ RULES: tuple[Rule, ...] = (
     Rule(
         name="dd-mm-yyyy",
         pattern=(
-            regex(_DD + r"\s?[/\-]\s?" + _MM + r"\s?[/\-]\s?" + _YY),
+            regex(_date_re(_DD + r"\s?[/\-]\s?" + _MM + r"\s?[/\-]\s?" + _YY)),
         ),
         prod=_prod_dd_mm_yyyy,
     ),
     Rule(
         name="yyyy-mm-dd",
         pattern=(
-            regex(_YYYY + r"\-" + _MM + r"\-" + _DD),
+            regex(_date_re(_YYYY + r"\-" + _MM + r"\-" + _DD)),
         ),
         prod=_prod_yyyy_mm_dd,
     ),
     Rule(
         name="dd/mm",
-        pattern=(regex(_DD + r"\s?[/\-]\s?" + _MM),),
+        pattern=(regex(_date_re(_DD + r"\s?[/\-]\s?" + _MM)),),
         prod=_prod_dd_mm,
     ),
     # Ordinal day-of-month + month ------------------------------------------

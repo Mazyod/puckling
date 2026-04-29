@@ -1,8 +1,8 @@
 """English ordinal rules.
 
-Translated faithfully from Duckling's ``Duckling/Ordinal/EN/Rules.hs``:
-three rules cover simple ordinals ("first" .. "ninetieth"), composite
-ordinals ("twenty-fifth", "thirtyfirst"), and digit ordinals ("1st", "25th").
+Based on Duckling's ``Duckling/Ordinal/EN/Rules.hs``: three rules cover simple
+ordinals ("first" .. "ninetieth"), composite ordinals ("twenty-fifth",
+"thirtyfirst"), and digit ordinals ("1st", "25th").
 """
 
 from __future__ import annotations
@@ -55,6 +55,8 @@ CARDINALS_MAP: dict[str, int] = {
 _ORDINAL_WORDS = "|".join(ORDINALS_MAP)
 _TENS_WORDS = "|".join(CARDINALS_MAP)
 _UNIT_WORDS = "first|second|third|fourth|fifth|sixth|seventh|eighth|ninth"
+_BOUNDARY_L = r"(?<![\p{L}\p{N}_])"
+_BOUNDARY_R = r"(?![\p{L}\p{N}_])"
 
 
 def _ordinal_token(value: int) -> Token:
@@ -90,29 +92,48 @@ def _prod_ordinal_digits(tokens: tuple[Token, ...]) -> Token | None:
     if not isinstance(match, RegexMatch):
         return None
     digits = match.groups[0]
-    if not digits:
+    suffix = (match.groups[1] or "").lower()
+    if not digits or not suffix:
         return None
     try:
         n = int(digits)
     except ValueError:
         return None
+    if suffix != _ordinal_suffix(n):
+        return None
     return _ordinal_token(n)
+
+
+def _ordinal_suffix(n: int) -> str:
+    if 11 <= n % 100 <= 13:
+        return "th"
+    match n % 10:
+        case 1:
+            return "st"
+        case 2:
+            return "nd"
+        case 3:
+            return "rd"
+        case _:
+            return "th"
 
 
 RULES: tuple[Rule, ...] = (
     Rule(
         name="ordinals (first..twentieth,thirtieth,...)",
-        pattern=(regex(rf"({_ORDINAL_WORDS})"),),
+        pattern=(regex(rf"{_BOUNDARY_L}({_ORDINAL_WORDS}){_BOUNDARY_R}"),),
         prod=_prod_ordinal_words,
     ),
     Rule(
         name="ordinals (composite, e.g. eighty-seven, forty—seventh, twenty ninth, thirtythird)",
-        pattern=(regex(rf"({_TENS_WORDS})[\s\-—]?({_UNIT_WORDS})"),),
+        pattern=(
+            regex(rf"{_BOUNDARY_L}({_TENS_WORDS})[\s\-—]?({_UNIT_WORDS}){_BOUNDARY_R}"),
+        ),
         prod=_prod_composite_ordinal,
     ),
     Rule(
         name="ordinal (digits)",
-        pattern=(regex(r"0*(\d+) ?(st|nd|rd|th)"),),
+        pattern=(regex(rf"{_BOUNDARY_L}0*(\d+) ?(st|nd|rd|th){_BOUNDARY_R}"),),
         prod=_prod_ordinal_digits,
     ),
 )

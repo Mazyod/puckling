@@ -9,6 +9,19 @@ from puckling.corpus import pytest_examples
 from puckling.dimensions.time.en.corpus import CORPUS
 from tests.value_helpers import value_matches
 
+NEGATIVE_CASES: tuple[str, ...] = (
+    # Ordinary prose containing time-domain words should stay non-temporal.
+    "we need to revisit the timeline",
+    "please schedule the repository cleanup",
+    "the sprint retrospective went well",
+    "time flies when tests run",
+    "clockwise sorting is enabled",
+    "date parsing is complicated",
+    "holiday mode is off",
+    "interval training improves stamina",
+    "relative imports are fragile",
+)
+
 
 def _matches(actual: dict, expected: dict) -> bool:
     """Loose dict-subset equality.
@@ -27,3 +40,8 @@ def test_corpus(phrase: str, expected: dict, ctx_en) -> None:
     assert any(value_matches(e.value, expected) for e in entities), (
         f"{phrase!r} resolved to {[e.value for e in entities]}, expected {expected}"
     )
+
+
+@pytest.mark.parametrize("phrase", NEGATIVE_CASES)
+def test_negative_cases(phrase: str, ctx_en) -> None:
+    assert parse(phrase, ctx_en, Options(), dims=("time",)) == []

@@ -938,6 +938,8 @@ def _hhmm_prod(tokens: tuple[Token, ...]) -> Token | None:
         mn = int(raw_minute)
     except ValueError:
         return None
+    if h == 0 and "." in m.text:
+        return None
     return _tt(hour_minute_value(h, mn, is_12h=(h != 0 and h < 12)))
 
 

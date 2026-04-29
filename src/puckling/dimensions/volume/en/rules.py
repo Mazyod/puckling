@@ -19,6 +19,30 @@ from puckling.dimensions.volume.types import VolumeUnit, VolumeValue
 from puckling.predicates import is_dim, is_numeral
 from puckling.types import Rule, Token, predicate, regex
 
+_BOUNDARY_L = r"(?<![\p{L}\p{N}_])"
+_BOUNDARY_R = r"(?!\s*/)(?![\p{L}\p{N}_])"
+_NUMERIC_RE = r"(?<![\p{L}\p{N}_./-])\d+(\.\d+)?"
+_NUMERIC_CONTEXT_RE = r"\d+(?:\.\d+)?"
+_UNSUPPORTED_VOLUME_SHAPE_GUARD = (
+    rf"(?<!\b{_NUMERIC_CONTEXT_RE}\s*[-–—]\s*{_NUMERIC_CONTEXT_RE}\s*)"
+    rf"(?<!\b{_NUMERIC_CONTEXT_RE}\s+to\s+{_NUMERIC_CONTEXT_RE}\s*)"
+    rf"(?<!\bfrom\s+{_NUMERIC_CONTEXT_RE}\s*[^\s\d]+\s+to\s+{_NUMERIC_CONTEXT_RE}\s*)"
+    rf"(?<!\bbetween\s+{_NUMERIC_CONTEXT_RE}\s+and\s+{_NUMERIC_CONTEXT_RE}\s*)"
+    rf"(?<!\b(?:under|below|less\s+than|not\s+more\s+than|no\s+more\s+than|"
+    rf"over|above|at\s+least|more\s+than|at\s+most)\s+{_NUMERIC_CONTEXT_RE}\s*)"
+)
+_UNSUPPORTED_VOLUME_SHAPE_RIGHT_GUARD = rf"(?!\s*(?:[-–—]|to\b)\s*{_NUMERIC_CONTEXT_RE})"
+
+
+def _guarded_unit_pattern(pattern_re: str) -> str:
+    return (
+        f"{_UNSUPPORTED_VOLUME_SHAPE_GUARD}"
+        f"(?:{pattern_re})"
+        f"{_UNSUPPORTED_VOLUME_SHAPE_RIGHT_GUARD}"
+        f"{_BOUNDARY_R}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # numeral helpers (regex-driven; supplies tokens of dim="numeral")
 #
@@ -69,24 +93,28 @@ def _prod_indefinite_article(_tokens: tuple[Token, ...]) -> Token | None:
 _NUMERAL_RULES: tuple[Rule, ...] = (
     Rule(
         name="integer (digits)",
-        pattern=(regex(r"\d+(\.\d+)?"),),
+        pattern=(regex(_NUMERIC_RE),),
         prod=_prod_digits,
     ),
     Rule(
         name="word numeral",
         pattern=(
-            regex(r"\b(one|two|three|four|five|six|seven|eight|nine|ten|thousand)\b"),
+            regex(
+                rf"{_BOUNDARY_L}"
+                r"(one|two|three|four|five|six|seven|eight|nine|ten|thousand)"
+                rf"{_BOUNDARY_R}"
+            ),
         ),
         prod=_prod_word_numeral,
     ),
     Rule(
         name="simple fraction",
-        pattern=(regex(r"(\d+)/(\d+)"),),
+        pattern=(regex(rf"{_BOUNDARY_L}(\d+)/(\d+)"),),
         prod=_prod_simple_fraction,
     ),
     Rule(
         name="indefinite article (a/an)",
-        pattern=(regex(r"\ban?\b"),),
+        pattern=(regex(rf"{_BOUNDARY_L}an?{_BOUNDARY_R}"),),
         prod=_prod_indefinite_article,
     ),
 )
@@ -112,7 +140,10 @@ def _make_volume_rule(name: str, pat: str, unit: VolumeUnit) -> Rule:
 
     return Rule(
         name=name,
-        pattern=(predicate(is_numeral, "is_numeral"), regex(pat)),
+        pattern=(
+            predicate(is_numeral, "is_numeral"),
+            regex(_guarded_unit_pattern(pat)),
+        ),
         prod=prod,
     )
 
@@ -134,13 +165,23 @@ _FRACTIONS: tuple[tuple[str, str, float], ...] = (
 )
 
 
-def _make_fraction_rule(name: str, pat: str, factor: float, unit_name: str, unit_pat: str, unit: VolumeUnit) -> Rule:
+def _make_fraction_rule(
+    name: str,
+    pat: str,
+    factor: float,
+    unit_name: str,
+    unit_pat: str,
+    unit: VolumeUnit,
+) -> Rule:
     def prod(_tokens: tuple[Token, ...]) -> Token | None:
         return Token(dim="volume", value=VolumeValue(value=factor, unit=unit))
 
     return Rule(
         name=f"{name} {unit_name}",
-        pattern=(regex(pat), regex(unit_pat)),
+        pattern=(
+            regex(f"{_BOUNDARY_L}{pat}"),
+            regex(_guarded_unit_pattern(unit_pat)),
+        ),
         prod=prod,
     )
 

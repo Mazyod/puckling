@@ -2,9 +2,9 @@
 
 Faithful Python port of Duckling's ``Duckling/CreditCardNumber/Rules.hs`` and
 ``Duckling/CreditCardNumber/Helpers.hs``: one rule per issuer, each matching a
-specific BIN-informed pattern (with or without dashes) and validated by the
-Luhn checksum. A fallback rule catches generic 8-19 digit sequences that do not
-match any issuer-specific pattern.
+specific BIN-informed pattern and validated by the Luhn checksum. A fallback
+rule catches generic 8-19 digit sequences that do not match any issuer-specific
+pattern.
 """
 
 from __future__ import annotations
@@ -20,31 +20,44 @@ _MAX_DIGITS = 19
 # ---------------------------------------------------------------------------
 # Issuer-specific regex fragments (BIN-informed; mirror upstream Helpers.hs).
 #
-# Each fragment accepts either no separators or a separator (dash *or* space)
-# at the upstream-specified group boundaries. Upstream Duckling only allows
-# dashes; puckling extends to ASCII spaces so common copy-paste forms parse.
+# Each fragment accepts either no separators or one consistent separator
+# (dash or ASCII space) at the upstream-specified group boundaries. Upstream
+# Duckling only allows dashes; puckling extends to ASCII spaces so common
+# copy-paste forms parse.
 # TODO(puckling): edge case — narrow to dashes only if strict upstream parity
 # is required.
 
-_VISA = r"(4[0-9]{15}|4[0-9]{3}[- ][0-9]{4}[- ][0-9]{4}[- ][0-9]{4})"
-_AMEX = r"(3[47][0-9]{13}|3[47][0-9]{2}[- ][0-9]{6}[- ][0-9]{5})"
+_VISA = (
+    r"(?:4[0-9]{15}"
+    r"|4[0-9]{3}-[0-9]{4}-[0-9]{4}-[0-9]{4}"
+    r"|4[0-9]{3} [0-9]{4} [0-9]{4} [0-9]{4})"
+)
+_AMEX = (
+    r"(?:3[47][0-9]{13}"
+    r"|3[47][0-9]{2}-[0-9]{6}-[0-9]{5}"
+    r"|3[47][0-9]{2} [0-9]{6} [0-9]{5})"
+)
 _DISCOVER = (
-    r"(6(?:011|[45][0-9]{2})[0-9]{12}"
-    r"|6(?:011|[45][0-9]{2})[- ][0-9]{4}[- ][0-9]{4}[- ][0-9]{4})"
+    r"(?:6(?:011|[45][0-9]{2})[0-9]{12}"
+    r"|6(?:011|[45][0-9]{2})-[0-9]{4}-[0-9]{4}-[0-9]{4}"
+    r"|6(?:011|[45][0-9]{2}) [0-9]{4} [0-9]{4} [0-9]{4})"
 )
 _MASTERCARD = (
-    r"(5[1-5][0-9]{14}|5[1-5][0-9]{2}[- ][0-9]{4}[- ][0-9]{4}[- ][0-9]{4})"
+    r"(?:5[1-5][0-9]{14}"
+    r"|5[1-5][0-9]{2}-[0-9]{4}-[0-9]{4}-[0-9]{4}"
+    r"|5[1-5][0-9]{2} [0-9]{4} [0-9]{4} [0-9]{4})"
 )
 _DINER_CLUB = (
-    r"(3(?:0[0-5]|[68][0-9])[0-9]{11}"
-    r"|3(?:0[0-5]|[68][0-9])[0-9][- ][0-9]{6}[- ][0-9]{4})"
+    r"(?:3(?:0[0-5]|[68][0-9])[0-9]{11}"
+    r"|3(?:0[0-5]|[68][0-9])[0-9]-[0-9]{6}-[0-9]{4}"
+    r"|3(?:0[0-5]|[68][0-9])[0-9] [0-9]{6} [0-9]{4})"
 )
 
 # The "other" pattern excludes any of the issuer-specific patterns so it acts
 # as a true fallback. This mirrors the negative-lookahead chain in Helpers.hs.
 _OTHER = (
-    rf"((?!{_VISA})(?!{_AMEX})(?!{_DISCOVER})(?!{_MASTERCARD})(?!{_DINER_CLUB})"
-    rf"\d{{{_MIN_DIGITS},{_MAX_DIGITS}}})"
+    rf"(?:(?!{_VISA})(?!{_AMEX})(?!{_DISCOVER})(?!{_MASTERCARD})(?!{_DINER_CLUB})"
+    rf"[0-9]{{{_MIN_DIGITS},{_MAX_DIGITS}}})"
 )
 
 
@@ -95,12 +108,13 @@ def _make_prod(issuer: str):
 
 
 def _make_rule(name: str, pattern: str, issuer: str) -> Rule:
-    # Wrap each pattern in digit-boundary lookarounds so we never match a
-    # substring of a longer digit run. Upstream Duckling relies on a learned
-    # ranker (Duckling.Ranking) to discard such partial matches; puckling has
-    # no ranker yet, so we enforce whole-number semantics via the regex.
+    # Wrap each pattern in token-boundary lookarounds so we never match inside
+    # a longer identifier/number or consume the valid prefix of a malformed
+    # dash-separated run. Upstream Duckling relies on a learned ranker
+    # (Duckling.Ranking) to discard such partial matches; puckling has no
+    # ranker yet, so we enforce whole-number semantics via the regex.
     # TODO(puckling): edge case — drop boundaries once ranking is implemented.
-    anchored = rf"(?<!\d){pattern}(?!\d)"
+    anchored = rf"(?<![\p{{L}}\p{{N}}_-]){pattern}(?![\p{{L}}\p{{N}}_-])"
     return Rule(name=name, pattern=(regex(anchored),), prod=_make_prod(issuer))
 
 

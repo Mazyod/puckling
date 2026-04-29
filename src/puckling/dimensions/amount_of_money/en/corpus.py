@@ -19,7 +19,7 @@ CORPUS: tuple[Example, ...] = (
     ),
     examples(
         {"value": 10, "unit": "USD", "type": "value"},
-        ["$10", "$ 10", "10$", "10 dollars", "10 dollar"],
+        ["$10", "$ 10", "10$", "US$10", "10 dollars", "10 dollar"],
     ),
     examples(
         {"value": 10, "unit": "cent", "type": "value"},
@@ -31,7 +31,7 @@ CORPUS: tuple[Example, ...] = (
     ),
     examples(
         {"value": 20, "unit": "EUR", "type": "value"},
-        ["20€", "20 euros", "20 euro", "EUR 20", "EUR 20.0"],
+        ["20€", "€20", "20 euros", "20 euro", "EUR 20", "EUR 20.0"],
     ),
     examples(
         {"value": 10, "unit": "GBP", "type": "value"},

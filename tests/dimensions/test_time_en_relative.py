@@ -9,6 +9,15 @@ from puckling.corpus import pytest_examples
 from puckling.dimensions.time.en.relative_corpus import CORPUS
 from tests.value_helpers import value_matches
 
+NEGATIVE_CASES: tuple[str, ...] = (
+    # Malformed relative expressions.
+    "in days",
+    "in -3 days",
+    "the day after",
+    "the day before",
+    "yesterdaily",
+)
+
 
 def _matches(actual: dict, expected: dict) -> bool:
     """Loose dict-subset equality.
@@ -35,3 +44,8 @@ def test_relative_corpus(phrase: str, expected: dict, ctx_en) -> None:
     assert any(value_matches(e.value, expected) for e in entities), (
         f"{phrase!r} resolved to {[e.value for e in entities]}, expected {expected}"
     )
+
+
+@pytest.mark.parametrize("phrase", NEGATIVE_CASES)
+def test_relative_negative_cases(phrase: str, ctx_en) -> None:
+    assert parse(phrase, ctx_en, Options(with_latent=True), dims=("time",)) == []

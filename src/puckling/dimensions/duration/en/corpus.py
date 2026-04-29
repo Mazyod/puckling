@@ -34,6 +34,7 @@ def _v(value: int, unit: str) -> dict:
 
 CORPUS: tuple[Example, ...] = (
     examples(_v(1, "second"), ["one sec", "1 second", '1"']),
+    examples(_v(2, "second"), ["2 sec", "2 secs", "2 seconds", "2seconds"]),
     examples(
         _v(2, "minute"),
         [
@@ -47,18 +48,24 @@ CORPUS: tuple[Example, ...] = (
             "2 fewer minutes",
             "2m",
             "2 m",
+            "2min",
+            "2mins",
+            "2minutes",
         ],
     ),
     examples(_v(30, "day"), ["30 days"]),
     examples(_v(7, "week"), ["seven weeks"]),
     examples(_v(1, "month"), ["1 month", "a month"]),
     examples(_v(3, "quarter"), ["3 quarters"]),
+    examples(_v(2, "hour"), ["2 h", "2h", "2 hr", "2 hrs", "2 hours", "2hours"]),
     examples(_v(2, "year"), ["2 years"]),
+    examples(_v(14, "day"), ["fortnight", "a fortnight", "one fortnight"]),
     examples(
         _v(30, "minute"),
         ["half an hour", "half hour", "1/2 hour", "1/2h", "1/2 h"],
     ),
     examples(_v(12, "hour"), ["half a day", "half day", "1/2 day"]),
+    examples(_v(45, "minute"), ["3/4 hour", "3/4 h", "3/4h", "three-quarters of an hour"]),
     examples(
         _v(90, "minute"),
         [

@@ -21,8 +21,15 @@ from puckling.types import Rule, Token, predicate, regex
 # Numeral seed (digits only).
 #
 # Accepts ASCII digits ("42", "3.14") or Arabic-Indic digits ("٤٢", "٣٫١٤").
+# Regexes run overlapped, so guards prevent matching inside attached words or
+# punctuation-fragmented numbers like "10,5 دولار".
 
-_NUMERIC_RE = r"[٠-٩]+(٫[٠-٩]+)?|\d+(\.\d+)?"
+_AR_WORD_BOUND_R = r"(?![\p{L}\p{N}])"
+_NUMERIC_RE = r"(?<![\p{L}\p{N}.,٫])(?:[٠-٩]+(?:٫[٠-٩]+)?|\d+(?:\.\d+)?)"
+
+
+def _word_currency(pattern: str) -> str:
+    return rf"(?:{pattern}){_AR_WORD_BOUND_R}"
 
 
 def _prod_numeral(tokens: tuple[Token, ...]) -> Token:
@@ -99,89 +106,89 @@ RULES: tuple[Rule, ...] = (
     # ---- Country-qualified currencies (must match before generic words). ----
     Rule(
         name="<n> دينار كويتي → KWD",
-        pattern=(_NUM, regex(r"(?:دينار|دنانير)\s+كويتي[ةه]?|د\.ك")),
+        pattern=(_NUM, regex(_word_currency(r"(?:دينار|دنانير)\s+كويتي[ةه]?|د\.ك"))),
         prod=_prod_kwd,
     ),
     Rule(
         name="<n> دينار أردني → JOD",
-        pattern=(_NUM, regex(r"(?:دينار|دنانير)\s+[أا]ردني[ةه]?")),
+        pattern=(_NUM, regex(_word_currency(r"(?:دينار|دنانير)\s+[أا]ردني[ةه]?"))),
         prod=_prod_jod,
     ),
     Rule(
         name="<n> دينار عراقي → IQD",
-        pattern=(_NUM, regex(r"(?:دينار|دنانير)\s+عراقي[ةه]?")),
+        pattern=(_NUM, regex(_word_currency(r"(?:دينار|دنانير)\s+عراقي[ةه]?"))),
         prod=_prod_iqd,
     ),
     Rule(
         name="<n> ريال سعودي → SAR",
-        pattern=(_NUM, regex(r"(?:ريال|ريالات)\s+سعودي[ةه]?")),
+        pattern=(_NUM, regex(_word_currency(r"(?:ريال|ريالات)\s+سعودي[ةه]?"))),
         prod=_prod_sar,
     ),
     Rule(
         name="<n> ريال قطري → QAR",
-        pattern=(_NUM, regex(r"(?:ريال|ريالات)\s+قطري[ةه]?")),
+        pattern=(_NUM, regex(_word_currency(r"(?:ريال|ريالات)\s+قطري[ةه]?"))),
         prod=_prod_qar,
     ),
     Rule(
         name="<n> درهم إماراتي → AED",
-        pattern=(_NUM, regex(r"(?:درهم|دراهم)\s+[إا]ماراتي[ةه]?")),
+        pattern=(_NUM, regex(_word_currency(r"(?:درهم|دراهم)\s+[إا]ماراتي[ةه]?"))),
         prod=_prod_aed,
     ),
     Rule(
         name="<n> درهم مغربي → MAD",
-        pattern=(_NUM, regex(r"(?:درهم|دراهم)\s+مغربي[ةه]?")),
+        pattern=(_NUM, regex(_word_currency(r"(?:درهم|دراهم)\s+مغربي[ةه]?"))),
         prod=_prod_mad,
     ),
     Rule(
         name="<n> جنيه مصري → EGP",
-        pattern=(_NUM, regex(r"جنيه(?:ات)?\s+مصري[ةه]?|ج\.م\.?")),
+        pattern=(_NUM, regex(_word_currency(r"جنيه(?:ات)?\s+مصري[ةه]?|ج\.م\.?"))),
         prod=_prod_egp,
     ),
     Rule(
         name="<n> جنيه استرليني → GBP",
-        pattern=(_NUM, regex(r"جنيه(?:ات)?\s+استرليني[ةه]?")),
+        pattern=(_NUM, regex(_word_currency(r"جنيه(?:ات)?\s+استرليني[ةه]?"))),
         prod=_prod_gbp,
     ),
     Rule(
         name="<n> ليرة لبنانية → LBP",
-        pattern=(_NUM, regex(r"لير(?:ة|ه|ات)\s+لبناني[ةه]?")),
+        pattern=(_NUM, regex(_word_currency(r"لير(?:ة|ه|ات)\s+لبناني[ةه]?"))),
         prod=_prod_lbp,
     ),
     # ---- Generic single-word currencies (lower priority via later position). ----
     Rule(
         name="<n> دينار → Dinar",
-        pattern=(_NUM, regex(r"دينار|دنانير")),
+        pattern=(_NUM, regex(_word_currency(r"دينار|دنانير"))),
         prod=_prod_dinar,
     ),
     Rule(
         name="<n> ريال → Riyal",
-        pattern=(_NUM, regex(r"ريال(?:ات)?")),
+        pattern=(_NUM, regex(_word_currency(r"ريال(?:ات)?"))),
         prod=_prod_riyal,
     ),
     Rule(
         name="<n> درهم → Dirham",
-        pattern=(_NUM, regex(r"درا?هم")),
+        pattern=(_NUM, regex(_word_currency(r"درا?هم"))),
         prod=_prod_dirham,
     ),
     Rule(
         name="<n> جنيه → Pound",
-        pattern=(_NUM, regex(r"جنيه(?:ات)?")),
+        pattern=(_NUM, regex(_word_currency(r"جنيه(?:ات)?"))),
         prod=_prod_pound,
     ),
     Rule(
         name="<n> دولار → USD",
-        pattern=(_NUM, regex(r"دولار(?:ات)?")),
+        pattern=(_NUM, regex(_word_currency(r"دولار(?:ات)?"))),
         prod=_prod_usd,
     ),
     Rule(
         name="<n> يورو → EUR",
-        pattern=(_NUM, regex(r"[أاي]ورو|€")),
+        pattern=(_NUM, regex(_word_currency(r"[أاي]ورو|€"))),
         prod=_prod_eur,
     ),
     Rule(
         name="<n> شيكل → ILS",
         # TODO(puckling): edge case — also accepts شواقل/شيقل with q/k variants.
-        pattern=(_NUM, regex(r"شي?[كق]ل|شوا[كق]ل")),
+        pattern=(_NUM, regex(_word_currency(r"شي?[كق]ل|شوا[كق]ل"))),
         prod=_prod_ils,
     ),
     # ---- ISO codes (collapsed: regex captures the code, prod resolves it). ----

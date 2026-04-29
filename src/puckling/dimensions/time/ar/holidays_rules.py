@@ -50,6 +50,13 @@ from puckling.types import Rule, Token, regex
 # Token wrapping helpers — duplicated from `rules.py` because the registry
 # imports each `*_rules.py` independently and those helpers are private there.
 
+_WORD_BOUNDARY_LEFT = r"(?:(?<![\p{L}\p{N}_])|(?<=و))"
+_WORD_BOUNDARY_RIGHT = r"(?![\p{L}\p{N}_])"
+
+
+def _word_re(pattern: str) -> str:
+    return rf"{_WORD_BOUNDARY_LEFT}(?:{pattern}){_WORD_BOUNDARY_RIGHT}"
+
 
 def _t(td: TimeData, *, key: tuple = ()) -> Token:
     return Token(dim="time", value=WrappedTimeData(inner=td, key=key))
@@ -187,7 +194,7 @@ def _part_of_day_rule(name: str, pattern: str, start_h: int, end_h: int) -> Rule
     def prod(_: tuple[Token, ...]) -> Token:
         return _v(PartOfDayInterval(name=name, start_hour=start_h, end_hour=end_h))
 
-    return Rule(name=f"part-of-day:{name}", pattern=(regex(pattern),), prod=prod)
+    return Rule(name=f"part-of-day:{name}", pattern=(regex(_word_re(pattern)),), prod=prod)
 
 
 # ---------------------------------------------------------------------------
@@ -198,7 +205,7 @@ def _fixed_holiday_rule(name: str, pattern: str, month: int, day: int) -> Rule:
     def prod(_: tuple[Token, ...]) -> Token:
         return _t(fixed_holiday(month, day, name), key=("fixed_holiday", name, month, day))
 
-    return Rule(name=f"holiday:{name}", pattern=(regex(pattern),), prod=prod)
+    return Rule(name=f"holiday:{name}", pattern=(regex(_word_re(pattern)),), prod=prod)
 
 
 def _hijri_holiday_rule(
@@ -207,7 +214,7 @@ def _hijri_holiday_rule(
     def prod(_: tuple[Token, ...]) -> Token:
         return _v(HolidayValue(name=name, table=table))
 
-    return Rule(name=f"holiday:{name}", pattern=(regex(pattern),), prod=prod)
+    return Rule(name=f"holiday:{name}", pattern=(regex(_word_re(pattern)),), prod=prod)
 
 
 def _easter_holiday_rule(name: str, pattern: str) -> Rule:
@@ -217,7 +224,7 @@ def _easter_holiday_rule(name: str, pattern: str) -> Rule:
     def prod(_: tuple[Token, ...]) -> Token:
         return _t(computed_holiday(name, easter), key=("computed_holiday", name))
 
-    return Rule(name=f"holiday:{name}", pattern=(regex(pattern),), prod=prod)
+    return Rule(name=f"holiday:{name}", pattern=(regex(_word_re(pattern)),), prod=prod)
 
 
 # ---------------------------------------------------------------------------
@@ -253,7 +260,7 @@ def _make_in_grain_rule(name: str, unit: str, grain: Grain) -> Rule:
         n = _parse_first_int_group(matched)
         return None if n is None else _v(RelativeGrainTime(grain=grain, offset=n))
 
-    return Rule(name=f"in <n> {name}s", pattern=(regex(pat),), prod=prod)
+    return Rule(name=f"in <n> {name}s", pattern=(regex(_word_re(pat)),), prod=prod)
 
 
 def _make_ago_grain_rule(name: str, unit: str, grain: Grain) -> Rule:
@@ -263,7 +270,7 @@ def _make_ago_grain_rule(name: str, unit: str, grain: Grain) -> Rule:
         n = _parse_first_int_group(matched)
         return None if n is None else _v(RelativeGrainTime(grain=grain, offset=-n))
 
-    return Rule(name=f"<n> {name}s ago", pattern=(regex(pat),), prod=prod)
+    return Rule(name=f"<n> {name}s ago", pattern=(regex(_word_re(pat)),), prod=prod)
 
 
 # Arabic dual nouns embed an implicit "2" (e.g. اسبوعين = "two weeks"); they
@@ -282,7 +289,7 @@ def _make_in_dual_rule(name: str, unit: str, grain: Grain) -> Rule:
     def prod(_: tuple[Token, ...]) -> Token:
         return _v(RelativeGrainTime(grain=grain, offset=2))
 
-    return Rule(name=f"in two {name}s (dual)", pattern=(regex(pat),), prod=prod)
+    return Rule(name=f"in two {name}s (dual)", pattern=(regex(_word_re(pat)),), prod=prod)
 
 
 def _make_ago_dual_rule(name: str, unit: str, grain: Grain) -> Rule:
@@ -291,7 +298,7 @@ def _make_ago_dual_rule(name: str, unit: str, grain: Grain) -> Rule:
     def prod(_: tuple[Token, ...]) -> Token:
         return _v(RelativeGrainTime(grain=grain, offset=-2))
 
-    return Rule(name=f"two {name}s ago (dual)", pattern=(regex(pat),), prod=prod)
+    return Rule(name=f"two {name}s ago (dual)", pattern=(regex(_word_re(pat)),), prod=prod)
 
 
 # ---------------------------------------------------------------------------
@@ -324,7 +331,7 @@ def _every_dow_rule(name: str, dow_pattern: str, weekday: int) -> Rule:
             key=("every_dow", weekday),
         )
 
-    return Rule(name=f"every {name}", pattern=(regex(pat),), prod=prod)
+    return Rule(name=f"every {name}", pattern=(regex(_word_re(pat)),), prod=prod)
 
 
 # ---------------------------------------------------------------------------
@@ -335,7 +342,7 @@ RULES: tuple[Rule, ...] = (
     # ----- Christian holidays --------------------------------------------
     _fixed_holiday_rule(
         "Christmas",
-        r"عيد (?:ال)?ميلاد(?:\s+المجيد)?|(?:يوم |عطل[ةه] )?(?:ال)?كري?سماس",
+        r"عيد الميلاد(?:\s+المجيد)?|(?:يوم |عطل[ةه] )?(?:ال)?كري?سماس",
         12,
         25,
     ),
@@ -344,14 +351,14 @@ RULES: tuple[Rule, ...] = (
     # Hijri-anchored "Islamic New Year" rule in the main file.
     _fixed_holiday_rule(
         "New Year's Day",
-        r"ر[أا]س السن[ةه](?: الميلادي[ةه])?",
+        r"ر[أا]س السن[ةه](?: الميلادي[ةه]|(?!\s+[\p{L}]))",
         1,
         1,
     ),
     # ----- Islamic holidays (not yet covered) ----------------------------
     _hijri_holiday_rule(
         "Mawlid",
-        r"(?:عيد )?المولد(?: النبوي(?: الشريف)?)?",
+        r"(?:عيد )?المولد(?: النبوي(?: الشريف)?|(?!\s+[\p{L}]))",
         _mawlid,
     ),
     _hijri_holiday_rule(
@@ -385,7 +392,7 @@ RULES: tuple[Rule, ...] = (
         1,
     ),
     # ----- Parts of day (latent intervals) -------------------------------
-    _part_of_day_rule("morning", r"صباحا?ً?|الصباح", 4, 12),
+    _part_of_day_rule("morning", r"صباحاً?|الصباح", 4, 12),
     _part_of_day_rule("evening", r"مساءا?ً?|المساء|عصرا?ً?", 18, 0),
     _part_of_day_rule("night", r"ليلا?ً?|الليل[ةه]?", 18, 0),
     # ----- "بعد/في/خلال X <grain>" / "قبل X <grain>" ---------------------

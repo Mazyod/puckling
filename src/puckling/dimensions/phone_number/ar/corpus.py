@@ -9,6 +9,12 @@ from __future__ import annotations
 
 from puckling.corpus import Example, examples
 
+
+def _self_example(phrase: str) -> Example:
+    """Phrase whose resolved value equals the raw matched text."""
+    return examples({"value": phrase, "type": "value"}, [phrase])
+
+
 CORPUS: tuple[Example, ...] = (
     examples(
         {"value": "+966 50 123 4567", "type": "value"},
@@ -41,5 +47,10 @@ CORPUS: tuple[Example, ...] = (
     examples(
         {"value": "٠٥٠١٢٣٤٥٦٧", "type": "value"},
         ["٠٥٠١٢٣٤٥٦٧"],
+    ),
+    _self_example("050-123-4567"),
+    examples(
+        {"value": "٠٥٠ ١٢٣٤ ٥٦٧٨", "type": "value"},
+        ["اتصل على ٠٥٠ ١٢٣٤ ٥٦٧٨"],
     ),
 )

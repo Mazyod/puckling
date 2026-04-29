@@ -21,3 +21,19 @@ def test_corpus(phrase: str, expected: dict, ctx_ar) -> None:
     assert any(value_matches(e.value, expected) for e in entities), (
         f"{phrase!r} resolved to {[e.value for e in entities]}, expected {expected}"
     )
+
+
+@pytest.mark.parametrize(
+    "phrase",
+    [
+        "غداوي",
+        "اليومية",
+        "الأحدية",
+        "الاسبوعي",
+        "abc2015",
+        "20150",
+        "موعد عادي بدون تاريخ",
+    ],
+)
+def test_negative_cases(phrase: str, ctx_ar) -> None:
+    assert parse(phrase, ctx_ar, Options(), dims=("time",)) == []

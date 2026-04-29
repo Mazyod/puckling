@@ -14,12 +14,13 @@ from puckling.types import Rule, Token, regex
 # TODO(puckling): edge case — upstream supports an optional ``ext NNN`` suffix
 # and a 6-character minimum digit count enforced via lookahead. We omit those
 # here because the simplified pattern below is sufficient for the EN corpus.
-_PHONE_PATTERN = (
+_PHONE_BODY = (
     r"(?:\+?\d{1,3}[ .-]?)?"
     r"(?:\(?\d{2,4}\)?[ .-]?)?"
     r"\d{3,4}[ .-]?\d{3,4}"
     r"(?:[ .-]?\d{2,4})?"
 )
+_PHONE_PATTERN = rf"(?<![\w@/.:=&%+#-]){_PHONE_BODY}(?![\w@/])(?!(?:[.-]\d))"
 
 
 def _to_phone(toks: tuple[Token, ...]) -> Token | None:

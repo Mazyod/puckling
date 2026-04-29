@@ -220,6 +220,11 @@ def _prod_powers_of_ten(tokens: tuple[Token, ...]) -> Token | None:
 def _prod_composite_tens(tokens: tuple[Token, ...]) -> Token | None:
     """Sum of tens (20..90) and units (1..9). Engine-skipped whitespace is OK;
     the optional dash slot, when present, sits between."""
+    if len(tokens) == 2 and all(t.produced_by == "integer (numeric)" for t in tokens):
+        # Duckling composes "50 3" / "50\n3" as 53. In puckling's
+        # non-overlapping winner selection that can swallow independent
+        # newline-separated entities, so keep numeric digit runs independent.
+        return None
     tens = tokens[0].value.value
     # The middle token is either a regex match (the dash) or the units token.
     units = tokens[-1].value.value

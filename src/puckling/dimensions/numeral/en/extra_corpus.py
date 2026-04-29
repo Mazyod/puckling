@@ -103,6 +103,16 @@ CORPUS: tuple[Example, ...] = (
     examples(_v(2.5), ["2.5", "2 point 5"]),
     examples(_v(3.14), ["3.14"]),
     examples(_v(100.5), ["100.5"]),
+    examples(_v(1.5), ["one dot five"]),
+    examples(
+        _v(1.25),
+        [
+            "one point twenty five",
+            "one point twenty-five",
+            "one dot twenty five",
+            "one dot twenty-five",
+        ],
+    ),
     # K/M/G suffixes — additional values.
     examples(_v(5000), ["5K", "5k"]),
     examples(_v(500000), ["500K", "500k"]),
@@ -115,11 +125,12 @@ CORPUS: tuple[Example, ...] = (
     examples(_v(-10), ["-10", "negative ten"]),
     examples(_v(-100), ["-100", "minus 100", "minus one hundred"]),
     examples(_v(-1000), ["-1000", "negative one thousand"]),
+    examples(_v(-0.5), ["-.5", "minus .5", "minus point five", "negative point five"]),
     examples(_v(-1e6), ["-1M", "minus one million"]),
     examples(_v(-2e6), ["negative two million"]),
     examples(_v(-1e9), ["-1G"]),
     # Fractions.
-    examples(_v(0.5), ["1/2", "5/10"]),
+    examples(_v(0.5), ["1/2", "3/6", "5/10"]),
     examples(_v(0.25), ["1/4"]),
     examples(_v(0.75), ["3/4"]),
     examples(_v(0.875), ["7/8"]),
@@ -128,6 +139,7 @@ CORPUS: tuple[Example, ...] = (
     examples(_v(1000), ["1,000"]),
     examples(_v(10000), ["10,000"]),
     examples(_v(1e6), ["1,000,000"]),
+    examples(_v(1234567.89), ["1,234,567.89"]),
     # Parens form `<integer> (<integer>)`.
     examples(_v(20), ["twenty (20)", "20 (twenty)"]),
     examples(_v(5), ["(5)"]),

@@ -15,14 +15,31 @@ from puckling.types import Rule, Token, regex
 # A digit class that matches both ASCII (0-9) and Arabic-Indic (٠-٩) digits.
 _DIGIT = r"[\d٠-٩]"
 
-# Mirrors Duckling's PhoneNumber pattern: optional country code, optional area
-# code in parens, then two groups of 3-4 digits separated by spaces, dots, or
-# hyphens. Extended with Arabic-Indic digits via `_DIGIT`.
+# Local boundary guards keep the generic shape from surfacing inside longer
+# digit runs, identifiers, URLs, emails, or after malformed "+ " / "- " starts.
+_BOUNDARY_L = (
+    r"(?<![\p{L}\p{N}_+@/.\-()])"
+    r"(?<![+-]\s)"
+    rf"(?<!\+\s{_DIGIT}\s)"
+    rf"(?<!\+\s{_DIGIT}{{2}}\s)"
+    rf"(?<!\+\s{_DIGIT}{{3}}\s)"
+    r"(?<!\)\s)"
+    rf"(?<!\({_DIGIT}{{2}}\s)"
+    rf"(?<!\({_DIGIT}{{3}}\s)"
+    rf"(?<!\({_DIGIT}{{4}}\s)"
+)
+_BOUNDARY_R = r"(?![\p{L}\p{N}_@/+-])(?!(?:\.[\p{L}_]))"
+
+# Mirrors Duckling's PhoneNumber pattern: optional country code, optional
+# balanced area code in parens, then two groups of 3-4 digits separated by
+# spaces, dots, or hyphens. Extended with Arabic-Indic digits via `_DIGIT`.
 # TODO(puckling): edge case — extension suffixes ("ext. 123") are not parsed.
 _PHONE_PATTERN = (
-    rf"(?:\+?{_DIGIT}{{1,3}}[\s.-]?)?"
-    rf"(?:\(?{_DIGIT}{{2,4}}\)?[\s.-]?)?"
-    rf"{_DIGIT}{{3,4}}[\s.-]?{_DIGIT}{{3,4}}"
+    _BOUNDARY_L
+    + rf"(?:\+?{_DIGIT}{{1,3}}[\s.-]?)?"
+    + rf"(?:(?:\({_DIGIT}{{2,4}}\)|{_DIGIT}{{2,4}})[\s.-]?)?"
+    + rf"{_DIGIT}{{3,4}}[\s.-]?{_DIGIT}{{3,4}}"
+    + _BOUNDARY_R
 )
 
 

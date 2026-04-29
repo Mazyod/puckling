@@ -9,6 +9,18 @@ from puckling.corpus import pytest_examples
 from puckling.dimensions.time.en.intervals_corpus import CORPUS
 from tests.value_helpers import value_matches
 
+NEGATIVE_CASES: tuple[str, ...] = (
+    # Unsupported interval separators should not produce partial ranges.
+    "2014..2016",
+    "2014 <> 2016",
+    "2014 ~~ 2016",
+    "2014--2016",
+    "2014 => 2016",
+    "between 2014 or 2016",
+    "2014 until",
+    "2014 to",
+)
+
 
 def _matches(actual: dict, expected: dict) -> bool:
     """Loose dict-subset equality — same shape used by `test_time_en.py`."""
@@ -22,3 +34,8 @@ def test_intervals_corpus(phrase: str, expected: dict, ctx_en) -> None:
     assert any(value_matches(e.value, expected) for e in entities), (
         f"{phrase!r} resolved to {[e.value for e in entities]}, expected {expected}"
     )
+
+
+@pytest.mark.parametrize("phrase", NEGATIVE_CASES)
+def test_intervals_negative_cases(phrase: str, ctx_en) -> None:
+    assert parse(phrase, ctx_en, Options(), dims=("time",)) == []

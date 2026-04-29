@@ -4,6 +4,8 @@ Includes:
   * a numeric-helper seeder so simple "<n> <unit>" matches don't depend on the
     Numeral EN dimension (which is built in a separate worker),
   * per-unit "<numeral> <unit>" rules,
+  * local boundary/context guards to avoid surfacing embedded units or partial
+    values from unsupported range/open-interval forms,
   * a precision wrapper ("about|exactly <dist>"),
   * composite distance summation with comma/"and" or adjacency, including
     cross-system reconciliation that prefers the metric system.
@@ -25,6 +27,9 @@ from puckling.types import Rule, Token, predicate, regex
 # digit/decimal token here. It never wins on its own; the per-unit rules below
 # always consume it into a richer distance token.
 
+_NUMERIC_RE = r"(?<![\p{L}\p{N}_./-])\d+(\.\d+)?"
+_NUMERIC_CONTEXT_RE = r"\d+(?:\.\d+)?"
+
 
 def _prod_numeric(tokens: tuple[Token, ...]) -> Token | None:
     text = tokens[0].value.text
@@ -34,7 +39,7 @@ def _prod_numeric(tokens: tuple[Token, ...]) -> Token | None:
 
 _rule_numeric_seed = Rule(
     name="<numeric>",
-    pattern=(regex(r"\d+(\.\d+)?"),),
+    pattern=(regex(_NUMERIC_RE),),
     prod=_prod_numeric,
 )
 
@@ -54,6 +59,34 @@ def _is_distance_token(t: Token) -> bool:
     )
 
 
+_UNIT_LEFT_GUARD = (
+    rf"(?<![\p{{L}}_/]{_NUMERIC_CONTEXT_RE}\s*)"
+    rf"(?<![-–—]\s*{_NUMERIC_CONTEXT_RE}\s*)"
+)
+_UNSUPPORTED_DISTANCE_SHAPE_GUARD = (
+    rf"(?<!\b{_NUMERIC_CONTEXT_RE}\s*[-–—/]\s*{_NUMERIC_CONTEXT_RE}\s*)"
+    rf"(?<!\b{_NUMERIC_CONTEXT_RE}\s+to\s+{_NUMERIC_CONTEXT_RE}\s*)"
+    rf"(?<!\bfrom\s+{_NUMERIC_CONTEXT_RE}\s*[^\s\d]+\s+to\s+{_NUMERIC_CONTEXT_RE}\s*)"
+    rf"(?<!\bbetween\s+{_NUMERIC_CONTEXT_RE}\s+and\s+{_NUMERIC_CONTEXT_RE}\s*)"
+    rf"(?<!\b(?:under|below|less\s+than|not\s+more\s+than|no\s+more\s+than|"
+    rf"over|above|at\s+least|more\s+than)\s+{_NUMERIC_CONTEXT_RE}\s*)"
+)
+_UNSUPPORTED_DISTANCE_SHAPE_RIGHT_GUARD = (
+    rf"(?!\s*(?:[-–—]|to\b)\s*{_NUMERIC_CONTEXT_RE})"
+)
+_UNIT_RIGHT_GUARD = r"(?![\p{L}\p{N}_/])"
+
+
+def _guarded_unit_pattern(pattern_re: str) -> str:
+    return (
+        f"{_UNIT_LEFT_GUARD}"
+        f"{_UNSUPPORTED_DISTANCE_SHAPE_GUARD}"
+        f"(?:{pattern_re})"
+        f"{_UNSUPPORTED_DISTANCE_SHAPE_RIGHT_GUARD}"
+        f"{_UNIT_RIGHT_GUARD}"
+    )
+
+
 def _make_unit_rule(name: str, pattern_re: str, unit: DistanceUnit) -> Rule:
     def prod(tokens: tuple[Token, ...]) -> Token | None:
         n = tokens[0].value.value
@@ -63,7 +96,10 @@ def _make_unit_rule(name: str, pattern_re: str, unit: DistanceUnit) -> Rule:
 
     return Rule(
         name=name,
-        pattern=(predicate(is_numeral, "is_numeral"), regex(pattern_re)),
+        pattern=(
+            predicate(is_numeral, "is_numeral"),
+            regex(_guarded_unit_pattern(pattern_re)),
+        ),
         prod=prod,
     )
 

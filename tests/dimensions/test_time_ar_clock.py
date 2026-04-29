@@ -21,3 +21,27 @@ def test_clock_corpus(phrase: str, expected: dict, ctx_ar) -> None:
     assert any(value_matches(e.value, expected) for e in entities), (
         f"{phrase!r} resolved to {[e.value for e in entities]}, expected {expected}"
     )
+
+
+@pytest.mark.parametrize(
+    "phrase",
+    [
+        "25:00",
+        "24:00",
+        "12:60",
+        "3::20",
+        "3:20:40",
+        "0.10",
+        "00.10",
+        "$0.10",
+        "٠.١٠",
+        "0.10 من منو",
+        "0.18 حق شنو",
+        "الساعة 25",
+        "الساعة 5 و 75 دقيقة",
+        "الساعة الخامسة و ثلاثة",
+        "الساعة الخامسة إلا خمس",
+    ],
+)
+def test_negative_cases(phrase: str, ctx_ar) -> None:
+    assert parse(phrase, ctx_ar, Options(with_latent=True), dims=("time",)) == []

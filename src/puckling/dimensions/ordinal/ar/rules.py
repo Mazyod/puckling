@@ -5,6 +5,16 @@ from __future__ import annotations
 from puckling.dimensions.ordinal.types import ordinal
 from puckling.types import RegexMatch, Rule, Token, regex
 
+# Plain \b is unreliable for Arabic in `regex`; explicitly require that
+# ordinal words do not sit inside a larger letter/digit token.
+_BOUND_L = r"(?<![\p{L}\p{N}])"
+_BOUND_R = r"(?![\p{L}\p{N}])"
+
+
+def _bounded(pattern: str) -> str:
+    return _BOUND_L + r"(?:" + pattern + r")" + _BOUND_R
+
+
 # Maps the Arabic ordinal stems for 1..10 to their integer values.
 _ORDINALS_MAP: dict[str, int] = {
     "اول": 1,
@@ -107,8 +117,10 @@ RULES: tuple[Rule, ...] = (
         name="ordinals (composite, e.g., eighty-seven)",
         pattern=(
             regex(
-                r"ال(واحد|حادي?|ثاني?|ثالث|رابع|خامس|سادس|سابع|ثامن|تاسع|عاشر)"
-                r" و ?ال(عشر|ثلاث|اربع|خمس|ست|سبع|ثمان|تسع)(ون|ين)"
+                _bounded(
+                    r"ال(واحد|حادي?|ثاني?|ثالث|رابع|خامس|سادس|سابع|ثامن|تاسع|عاشر)"
+                    r" و ?ال(عشر|ثلاث|اربع|خمس|ست|سبع|ثمان|تسع)(ون|ين)"
+                )
             ),
         ),
         prod=_composite_ordinals,
@@ -116,28 +128,32 @@ RULES: tuple[Rule, ...] = (
     Rule(
         name="ordinals (first..tenth)",
         pattern=(
-            regex(r"(?:ال)?([أا]ول|ثاني?|ثالث|رابع|خامس|سادس|سابع|ثامن|تاسع|عاشر)[ةهى]?"),
+            regex(
+                _bounded(
+                    r"(?:ال)?([أا]ول|ثاني?|ثالث|رابع|خامس|سادس|سابع|ثامن|تاسع|عاشر)[ةهى]?"
+                )
+            ),
         ),
         prod=_ordinals_1_to_10,
     ),
     Rule(
         name="ordinals (eleventh)",
-        pattern=(regex(r"ال([اأإ]حد[يى]?|حاد(?:ي[ةه]?)?) ?عشر[ةه]?"),),
+        pattern=(regex(_bounded(r"ال([اأإ]حد[يى]?|حاد(?:ي[ةه]?)?) ?عشر[ةه]?")),),
         prod=_ordinals_11,
     ),
     Rule(
         name="ordinals (twelveth)",
-        pattern=(regex(r"ال([اأإ]ثن[يى]?|ثان(?:ي[ةه]?)?) ?عشر[ةه]?"),),
+        pattern=(regex(_bounded(r"ال([اأإ]ثن[يى]?|ثان(?:ي[ةه]?)?) ?عشر[ةه]?")),),
         prod=_ordinals_12,
     ),
     Rule(
         name="ordinals (thirtieth..nineteenth)",
-        pattern=(regex(r"ال(ثالث|رابع|خامس|سادس|سابع|ثامن|تاسع)[ةه]? ?عشرة?"),),
+        pattern=(regex(_bounded(r"ال(ثالث|رابع|خامس|سادس|سابع|ثامن|تاسع)[ةه]? ?عشرة?")),),
         prod=_ordinals_13_to_19,
     ),
     Rule(
         name="ordinals (twenty, thirty..ninety)",
-        pattern=(regex(r"ال(عشر|ثلاث|اربع|خمس|ست|سبع|ثمان|تسع)(ون|ين)"),),
+        pattern=(regex(_bounded(r"ال(عشر|ثلاث|اربع|خمس|ست|سبع|ثمان|تسع)(ون|ين)")),),
         prod=_ordinals_tens,
     ),
 )
