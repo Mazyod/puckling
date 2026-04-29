@@ -29,10 +29,9 @@ import time
 from dataclasses import dataclass
 from zoneinfo import ZoneInfo
 
-from puckling import Context, Locale, Options, Region, parse
-
 from bench.corpus import CORPUS, Sample, length_bucket
 from bench.metrics import Aggregate, ColdMeasurement, PerCall, aggregate
+from puckling import Context, Locale, Options, Region, parse
 
 PROD_DIMS = (
     "amount_of_money",

@@ -24,10 +24,9 @@ import pstats
 import tracemalloc
 from pathlib import Path
 
-from puckling import Context, Locale, Options, parse
-
 from bench.corpus import CORPUS
 from bench.harness import PROD_DIMS, PROD_REGION, PROD_TIMEOUT_MS, PROD_TZ
+from puckling import Context, Locale, Options, parse
 
 
 def _exercise_corpus(*, rounds: int) -> None:
@@ -45,7 +44,7 @@ def _exercise_corpus(*, rounds: int) -> None:
 def run_cprofile(*, rounds: int, results_dir: Path, top_n: int) -> Path:
     """Profile the whole corpus N times, write .cprof, print top hot funcs."""
     results_dir.mkdir(parents=True, exist_ok=True)
-    ts = dt.datetime.now(tz=dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    ts = dt.datetime.now(tz=dt.UTC).strftime("%Y%m%dT%H%M%SZ")
     out_path = results_dir / f"{ts}-cprofile.cprof"
 
     profiler = cProfile.Profile()

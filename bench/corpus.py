@@ -85,7 +85,7 @@ _RAW: tuple[tuple[str, Lang, str], ...] = (
 )
 
 
-CORPUS: tuple[Sample, ...] = tuple(Sample(text=t, lang=l, tag=tag) for t, l, tag in _RAW)
+CORPUS: tuple[Sample, ...] = tuple(Sample(text=t, lang=lang, tag=tag) for t, lang, tag in _RAW)
 
 
 def length_bucket(sample: Sample) -> str:
