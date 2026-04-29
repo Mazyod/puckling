@@ -24,6 +24,10 @@ CORPUS: tuple[Example, ...] = (
         ["2 liters", "2l"],
     ),
     examples(
+        _v(2.5, "litre"),
+        ["2.5 liters", "2.5l"],
+    ),
+    examples(
         _v(1000, "litre"),
         ["1000 liters", "thousand liters"],
     ),
@@ -33,7 +37,7 @@ CORPUS: tuple[Example, ...] = (
     ),
     examples(
         _v(0.25, "litre"),
-        ["quarter-litre", "fourth of liter"],
+        ["quarter-litre", "fourth of liter", "1/4 litre"],
     ),
     examples(
         _v(1, "millilitre"),
@@ -41,7 +45,14 @@ CORPUS: tuple[Example, ...] = (
     ),
     examples(
         _v(250, "millilitre"),
-        ["250 milliliters", "250 millilitres", "250ml", "250mls", "250 ml"],
+        [
+            "250 milliliters",
+            "250 millilitres",
+            "250ml",
+            "250mls",
+            "250 ml",
+            "about 250 ml",
+        ],
     ),
     examples(
         _v(3, "gallon"),
@@ -57,7 +68,7 @@ CORPUS: tuple[Example, ...] = (
     ),
     examples(
         _v(3, "hectolitre"),
-        ["3 hectoliters"],
+        ["3 hectoliters", "3 hectolitres"],
     ),
     # TODO(puckling): edge case — interval/min/max corpus entries omitted
     # until VolumeValue can express min/max/interval state.

@@ -1,7 +1,8 @@
 """Corpus for the locale-agnostic ``credit_card`` dimension.
 
-Mirrors ``Duckling/CreditCardNumber/Corpus.hs``: positive examples paired with
-expected resolved values.
+Starts from ``Duckling/CreditCardNumber/Corpus.hs`` and adds Puckling-supported
+space-separated examples. Positive examples are paired with expected resolved
+values.
 """
 
 from __future__ import annotations
@@ -17,23 +18,23 @@ def _value(number: str, issuer: str) -> dict:
 CORPUS: tuple[Example, ...] = (
     examples(
         _value("4111111111111111", "visa"),
-        ["4111111111111111", "4111-1111-1111-1111"],
+        ["4111111111111111", "4111-1111-1111-1111", "4111 1111 1111 1111"],
     ),
     examples(
         _value("371449635398431", "amex"),
-        ["371449635398431", "3714-496353-98431"],
+        ["371449635398431", "3714-496353-98431", "3714 496353 98431"],
     ),
     examples(
         _value("6011111111111117", "discover"),
-        ["6011111111111117", "6011-1111-1111-1117"],
+        ["6011111111111117", "6011-1111-1111-1117", "6011 1111 1111 1117"],
     ),
     examples(
         _value("5555555555554444", "mastercard"),
-        ["5555555555554444", "5555-5555-5555-4444"],
+        ["5555555555554444", "5555-5555-5555-4444", "5555 5555 5555 4444"],
     ),
     examples(
         _value("30569309025904", "diner club"),
-        ["30569309025904", "3056-930902-5904"],
+        ["30569309025904", "3056-930902-5904", "3056 930902 5904"],
     ),
     examples(
         _value("3530111333300000", "other"),

@@ -14,6 +14,7 @@ Upstream:
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 
 from puckling.dimensions.amount_of_money.types import AmountOfMoneyValue, money
 from puckling.dimensions.numeral.types import NumeralValue
@@ -101,6 +102,20 @@ _CURRENCY_BY_TOKEN: dict[str, str] = {
     "us$": "USD",
 }
 
+_CURRENCY_SYMBOLS = "$€£¥¢₪₽₴₮₺"
+
+
+@dataclass(frozen=True, slots=True)
+class _CurrencyOnlyValue:
+    """Intermediate token used to compose concrete money amounts."""
+
+    value: None
+    currency: str
+    latent: bool = False
+
+    def resolve(self, _context: object) -> None:
+        return None
+
 
 def _currency_pattern() -> str:
     # Order longest-first so e.g. "us$" beats "$" and "rs." beats "rs".
@@ -111,7 +126,14 @@ def _currency_pattern() -> str:
     if alpha:
         parts.append(r"(?<![A-Za-z])(" + "|".join(alpha) + r")(?![A-Za-z])")
     if symbols:
-        parts.append("(" + "|".join(symbols) + ")")
+        symbol_boundaries = r"A-Za-z\-" + re.escape(_CURRENCY_SYMBOLS)
+        parts.append(
+            r"(?<![" + symbol_boundaries + r"])("
+            + "|".join(symbols)
+            + r")(?!["
+            + symbol_boundaries
+            + r"])"
+        )
     return "|".join(parts)
 
 
@@ -121,11 +143,12 @@ def _currency_pattern() -> str:
 
 
 def _is_currency_only(t: Token) -> bool:
+    v = t.value
     return (
         t.dim == "amount_of_money"
-        and isinstance(t.value, AmountOfMoneyValue)
-        and t.value.currency is not None
-        and t.value.value is None
+        and isinstance(v, (AmountOfMoneyValue, _CurrencyOnlyValue))
+        and v.currency is not None
+        and v.value is None
     )
 
 
@@ -174,11 +197,17 @@ def _prod_currency(tokens: tuple[Token, ...]) -> Token | None:
     code = _CURRENCY_BY_TOKEN.get(raw)
     if code is None:
         return None
-    return Token(dim="amount_of_money", value=money(value=None, currency=code))
+    return Token(
+        dim="amount_of_money",
+        value=_CurrencyOnlyValue(value=None, currency=code),
+    )
 
 
 def _prod_cent_word(tokens: tuple[Token, ...]) -> Token | None:
-    return Token(dim="amount_of_money", value=money(value=None, currency="cent"))
+    return Token(
+        dim="amount_of_money",
+        value=_CurrencyOnlyValue(value=None, currency="cent"),
+    )
 
 
 def _prod_amount_unit(tokens: tuple[Token, ...]) -> Token | None:
@@ -225,7 +254,7 @@ RULES: tuple[Rule, ...] = (
     # Numeric-handling rule (mandated by spec): integers and decimals.
     Rule(
         name="integer (numeric)",
-        pattern=(regex(r"\d+(\.\d+)?"),),
+        pattern=(regex(r"(?<![\d.,-])\d+(\.\d+)?(?![\d.,-])"),),
         prod=_prod_number,
     ),
     # Cent words and the "c" abbreviation — produce a cent currency token.

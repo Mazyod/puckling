@@ -20,6 +20,20 @@ from puckling.types import Rule, Token, predicate, regex
 # ---------------------------------------------------------------------------
 # helpers
 
+_WORD_BOUNDARY_LEFT = r"(?:(?<![\p{L}\p{N}_])|(?<=و))"
+_WORD_BOUNDARY_RIGHT = r"(?![\p{L}\p{N}_])"
+_NUMERIC_BOUNDARY_LEFT = r"(?<![\p{L}\p{N}_.,٫٬/+−])(?<!--)"
+_NUMERIC_BOUNDARY_RIGHT = r"(?![\p{L}\p{N}_.,٫٬/+−-])"
+
+
+def _word_re(pattern: str) -> str:
+    """Prevent word numerals from matching inside larger Arabic words."""
+    return rf"{_WORD_BOUNDARY_LEFT}(?:{pattern}){_WORD_BOUNDARY_RIGHT}"
+
+
+def _numeric_re(pattern: str) -> str:
+    return rf"{_NUMERIC_BOUNDARY_LEFT}(?:{pattern}){_NUMERIC_BOUNDARY_RIGHT}"
+
 
 def _numeral(value: int | float, *, grain: int | None = None, multipliable: bool = False) -> Token:
     return Token(dim="numeral", value=NumeralValue(value=value, grain=grain, multipliable=multipliable))
@@ -238,79 +252,79 @@ def _prod_powers_of_ten(tokens: tuple[Token, ...]) -> Token | None:
 
 _rule_integer_0 = Rule(
     name="integer 0",
-    pattern=(regex(r"صفر"),),
+    pattern=(regex(_word_re(r"صفر")),),
     prod=_prod_integer(0),
 )
 
 _rule_integer_1 = Rule(
     name="integer 1",
-    pattern=(regex(r"واحد[ةه]?"),),
+    pattern=(regex(_word_re(r"واحد[ةه]?")),),
     prod=_prod_integer(1),
 )
 
 _rule_integer_2 = Rule(
     name="integer 2",
-    pattern=(regex(r"[إا]ثنت?[اي]ن"),),
+    pattern=(regex(_word_re(r"[إا]ثنت?[اي]ن")),),
     prod=_prod_integer(2),
 )
 
 _rule_integer_3 = Rule(
     name="integer 3",
-    pattern=(regex(r"(ثلاث[ةه]?)"),),
+    pattern=(regex(_word_re(r"(ثلاث[ةه]?)")),),
     prod=_prod_integer(3),
 )
 
 _rule_integer_4 = Rule(
     name="integer 4",
-    pattern=(regex(r"([أا]ربع[ةه]?)"),),
+    pattern=(regex(_word_re(r"([أا]ربع[ةه]?)")),),
     prod=_prod_integer(4),
 )
 
 _rule_integer_5 = Rule(
     name="integer 5",
-    pattern=(regex(r"خمس[ةه]?"),),
+    pattern=(regex(_word_re(r"خمس[ةه]?")),),
     prod=_prod_integer(5),
 )
 
 _rule_integer_6 = Rule(
     name="integer 6",
-    pattern=(regex(r"ست[ةه]?"),),
+    pattern=(regex(_word_re(r"ست[ةه]?")),),
     prod=_prod_integer(6),
 )
 
 _rule_integer_7 = Rule(
     name="integer 7",
-    pattern=(regex(r"سبع[ةه]?"),),
+    pattern=(regex(_word_re(r"سبع[ةه]?")),),
     prod=_prod_integer(7),
 )
 
 _rule_integer_8 = Rule(
     name="integer 8",
-    pattern=(regex(r"ثما??ني?[ةه]?"),),
+    pattern=(regex(_word_re(r"ثما??ني?[ةه]?")),),
     prod=_prod_integer(8),
 )
 
 _rule_integer_9 = Rule(
     name="integer 9",
-    pattern=(regex(r"تسع[ةه]?"),),
+    pattern=(regex(_word_re(r"تسع[ةه]?")),),
     prod=_prod_integer(9),
 )
 
 _rule_integer_10 = Rule(
     name="integer 10",
-    pattern=(regex(r"عشر[ةه]?"),),
+    pattern=(regex(_word_re(r"عشر[ةه]?")),),
     prod=_prod_integer(10),
 )
 
 _rule_integer_11 = Rule(
     name="integer 11",
-    pattern=(regex(r"([إاأ]حد[يى]? عشر[ةه]?)"),),
+    pattern=(regex(_word_re(r"([إاأ]حد[يى]? عشر[ةه]?)")),),
     prod=_prod_integer(11),
 )
 
 _rule_integer_12 = Rule(
     name="integer 12",
-    pattern=(regex(r"([إا]?ثن(ت)?[يىا] ?عشر[ةه]?)"),),
+    pattern=(regex(_word_re(r"([إا]?ثن(ت)?[يىا] ?عشر[ةه]?)")),),
     prod=_prod_integer(12),
 )
 
@@ -325,7 +339,7 @@ _rule_integer_13_19 = Rule(
 
 _rule_integer_20_90 = Rule(
     name="integer (20..90)",
-    pattern=(regex(r"(عشر|ثلاث|[أا]ربع|خمس|ست|سبع|ثمان|تسع)(ون|ين)"),),
+    pattern=(regex(_word_re(r"(عشر|ثلاث|[أا]ربع|خمس|ست|سبع|ثمان|تسع)(ون|ين)")),),
     prod=_prod_integer_20_90,
 )
 
@@ -351,73 +365,73 @@ _rule_integer_101_999 = Rule(
 
 _rule_integer_200 = Rule(
     name="integer (200)",
-    pattern=(regex(r"مائتان|مائتين"),),
+    pattern=(regex(_word_re(r"مائتان|مائتين")),),
     prod=_prod_integer(200),
 )
 
 _rule_integer_300 = Rule(
     name="integer 300",
-    pattern=(regex(r"(ثلاث)ما?[ئي][ةه]"),),
+    pattern=(regex(_word_re(r"(ثلاث)ما?[ئي][ةه]")),),
     prod=_prod_integer(300),
 )
 
 _rule_integer_400 = Rule(
     name="integer 400",
-    pattern=(regex(r"([أا]ربع)ما?[ئي][ةه]"),),
+    pattern=(regex(_word_re(r"([أا]ربع)ما?[ئي][ةه]")),),
     prod=_prod_integer(400),
 )
 
 _rule_integer_500 = Rule(
     name="integer 500",
-    pattern=(regex(r"(خمس)ما?[ئي][ةه]"),),
+    pattern=(regex(_word_re(r"(خمس)ما?[ئي][ةه]")),),
     prod=_prod_integer(500),
 )
 
 _rule_integer_600 = Rule(
     name="integer 600",
-    pattern=(regex(r"(ست)ما?[ئي][ةه]"),),
+    pattern=(regex(_word_re(r"(ست)ما?[ئي][ةه]")),),
     prod=_prod_integer(600),
 )
 
 _rule_integer_700 = Rule(
     name="integer 700",
-    pattern=(regex(r"(سبع)ما?[ئي][ةه]"),),
+    pattern=(regex(_word_re(r"(سبع)ما?[ئي][ةه]")),),
     prod=_prod_integer(700),
 )
 
 _rule_integer_800 = Rule(
     name="integer 800",
-    pattern=(regex(r"(ثمان[ي]?)ما?[ئي][ةه]"),),
+    pattern=(regex(_word_re(r"(ثمان[ي]?)ما?[ئي][ةه]")),),
     prod=_prod_integer(800),
 )
 
 _rule_integer_900 = Rule(
     name="integer 900",
-    pattern=(regex(r"(تسع)ما?[ئي][ةه]"),),
+    pattern=(regex(_word_re(r"(تسع)ما?[ئي][ةه]")),),
     prod=_prod_integer(900),
 )
 
 _rule_decimal_with_thousands_separator = Rule(
     name="decimal with thousands separator",
-    pattern=(regex(r"(\d+(,\d\d\d)+\.\d+)"),),
+    pattern=(regex(_numeric_re(r"([0-9]+(,[0-9][0-9][0-9])+\.[0-9]+)")),),
     prod=_prod_decimal_with_thousands_separator,
 )
 
 _rule_decimal_numeral = Rule(
     name="decimal number",
-    pattern=(regex(r"(\d*\.\d+)"),),
+    pattern=(regex(_numeric_re(r"([0-9]*\.[0-9]+)")),),
     prod=_prod_decimal_numeral,
 )
 
 _rule_integer_with_thousands_separator = Rule(
     name="integer with thousands separator ,",
-    pattern=(regex(r"(\d{1,3}(,\d\d\d){1,5})"),),
+    pattern=(regex(_numeric_re(r"([0-9]{1,3}(,[0-9][0-9][0-9]){1,5})")),),
     prod=_prod_integer_with_thousands_separator,
 )
 
 _rule_integer_numeric = Rule(
     name="Arabic integer numeric",
-    pattern=(regex(r"([٠-٩]{1,18})"),),
+    pattern=(regex(_numeric_re(r"([٠-٩]{1,18})")),),
     prod=_prod_integer_numeric,
 )
 
@@ -427,25 +441,25 @@ _rule_integer_numeric = Rule(
 # resolve standalone; remove once the foundation provides the global rule.
 _rule_integer_numeric_ascii = Rule(
     name="integer (numeric)",
-    pattern=(regex(r"(\d{1,18})"),),
+    pattern=(regex(_numeric_re(r"([0-9]{1,18})")),),
     prod=_prod_integer_numeric_ascii,
 )
 
 _rule_fractions_numeric = Rule(
     name="Arabic fractional number numeric",
-    pattern=(regex(r"([٠-٩]+)/([٠-٩]+)"),),
+    pattern=(regex(_numeric_re(r"([٠-٩]+)/([٠-٩]+)")),),
     prod=_prod_fractions_numeric,
 )
 
 _rule_arabic_decimal = Rule(
     name="Arabic decimal number with Arabic decimal separator",
-    pattern=(regex(r"([٠-٩]*٫[٠-٩]+)"),),
+    pattern=(regex(_numeric_re(r"([٠-٩]*٫[٠-٩]+)")),),
     prod=_prod_arabic_decimal,
 )
 
 _rule_arabic_commas = Rule(
     name="Arabic number with commas and optional Arabic decimal separator",
-    pattern=(regex(r"([٠-٩]{1,3}(٬[٠-٩]{3}){1,5}(٫[٠-٩]+)?)"),),
+    pattern=(regex(_numeric_re(r"([٠-٩]{1,3}(٬[٠-٩]{3}){1,5}(٫[٠-٩]+)?)")),),
     prod=_prod_arabic_commas,
 )
 
@@ -461,7 +475,7 @@ _rule_multiply = Rule(
 _rule_numerals_prefix_minus = Rule(
     name="numbers prefix with -, minus",
     pattern=(
-        regex(r"-"),
+        regex(r"(?<!-)-(?!\s*-)"),
         predicate(is_numeral, "is_numeral"),
     ),
     prod=_prod_numerals_prefix_minus,
@@ -471,7 +485,7 @@ _rule_numeral_dot_numeral = Rule(
     name="number dot number",
     pattern=(
         predicate(is_numeral, "is_numeral"),
-        regex(r"فاصل[ةه]"),
+        regex(_word_re(r"فاصل[ةه]")),
         predicate(_is_numeral_without_grain, "no_grain"),
     ),
     prod=_prod_numeral_dot_numeral,
@@ -480,7 +494,11 @@ _rule_numeral_dot_numeral = Rule(
 _rule_powers_of_ten = Rule(
     name="powers of tens",
     pattern=(
-        regex(r"(ما?[ئي][ةه]|مئت(ان|ين)|مئات|[أا]لف(ان|ين)?|[آا]لاف|ملايين|مليون(ان|ين)?)"),
+        regex(
+            _word_re(
+                r"(ما?[ئي][ةه]|مئت(ان|ين)|مئات|[أا]لف(ان|ين)?|[آا]لاف|ملايين|مليون(ان|ين)?)"
+            )
+        ),
     ),
     prod=_prod_powers_of_ten,
 )

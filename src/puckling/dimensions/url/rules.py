@@ -13,6 +13,10 @@ from __future__ import annotations
 from puckling.dimensions.url.types import url
 from puckling.types import RegexMatch, Rule, Token, regex
 
+_URL_START_BOUNDARY = r"(?<![\w@./:-])"
+_URL_END_BOUNDARY = r"(?![\w:@-])"
+_LOCAL_URL_END_BOUNDARY = r"(?![\w:@.-])"
+
 
 def _groups(tokens: tuple[Token, ...]) -> tuple[str | None, ...]:
     rm = tokens[0].value
@@ -44,7 +48,9 @@ _URL_RULE = Rule(
     name="url",
     pattern=(
         regex(
-            r"((([a-zA-Z]+)://)?(w{2,3}[0-9]*\.)?(([\w_-]+\.)+[a-z]{2,4})(:(\d+))?(/[^?\s#]*)?(\?[^\s#]+)?(#[\-,*=&a-z0-9]+)?)"
+            _URL_START_BOUNDARY
+            + r"((([a-zA-Z]+)://)?(w{2,3}[0-9]*\.)?(([\w_-]+\.)+[a-z]{2,4})(:(\d+))?(/[^?\s#]*)?(\?[^\s#]+)?(#[\-,*=&a-z0-9]+)?)"
+            + _URL_END_BOUNDARY
         ),
     ),
     prod=_prod_url,
@@ -52,13 +58,25 @@ _URL_RULE = Rule(
 
 _LOCALHOST_RULE = Rule(
     name="localhost",
-    pattern=(regex(r"((([a-zA-Z]+)://)?localhost(:(\d+))?(/[^?\s#]*)?(\?[^\s#]+)?)"),),
+    pattern=(
+        regex(
+            _URL_START_BOUNDARY
+            + r"((([a-zA-Z]+)://)?localhost(:(\d+))?(/[^?\s#]*)?(\?[^\s#]+)?)"
+            + _LOCAL_URL_END_BOUNDARY
+        ),
+    ),
     prod=_prod_localhost,
 )
 
 _LOCAL_URL_RULE = Rule(
     name="local url",
-    pattern=(regex(r"(([a-zA-Z]+)://([\w_-]+)(:(\d+))?(/[^?\s#]*)?(\?[^\s#]+)?)"),),
+    pattern=(
+        regex(
+            _URL_START_BOUNDARY
+            + r"(([a-zA-Z]+)://([\w_-]+)(:(\d+))?(/[^?\s#]*)?(\?[^\s#]+)?)"
+            + _LOCAL_URL_END_BOUNDARY
+        ),
+    ),
     prod=_prod_local_url,
 )
 

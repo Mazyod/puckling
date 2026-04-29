@@ -19,7 +19,13 @@ from puckling.types import RegexMatch, Rule, Token, predicate, regex
 
 # Numeral seed so phrases like "٥ كم" parse without depending on the full
 # AR Numeral grammar — mirrors `ruleInteger (numeric)` in upstream Duckling.
-_DIGITS_RE = r"[٠-٩]+|[0-9]+"
+_NUMERIC_BOUND_L = r"(?<![\p{L}\p{N}.,٫٬])"
+_UNIT_BOUND_R = r"(?![\p{L}\p{N}])"
+_DIGITS_RE = rf"{_NUMERIC_BOUND_L}(?:[٠-٩]+|[0-9]+)"
+
+
+def _unit_re(pattern: str) -> str:
+    return rf"(?:{pattern}){_UNIT_BOUND_R}"
 
 
 def _prod_digits(tokens: tuple[Token, ...]) -> Token | None:
@@ -43,7 +49,7 @@ _NUMERAL = predicate(is_numeral, "is_numeral")
 def _distance_rule(name: str, unit: DistanceUnit, unit_re: str) -> Rule:
     return Rule(
         name=name,
-        pattern=(_NUMERAL, regex(unit_re)),
+        pattern=(_NUMERAL, regex(_unit_re(unit_re))),
         prod=_make_distance_prod(unit),
     )
 
@@ -69,9 +75,9 @@ RULES: tuple[Rule, ...] = (
     _distance_rule("<n> كيلومتر", DistanceUnit.KILOMETRE, r"كيلو ?متر(ات)?|كم"),
     _distance_rule("<n> سنتيمتر", DistanceUnit.CENTIMETRE, r"سنتي? ?متر(ات)?|سم"),
     _distance_rule("<n> ميليمتر", DistanceUnit.MILLIMETRE, r"مي?لي? ?متر(ات)?|مم"),
-    _distance_rule("<n> متر", DistanceUnit.METRE, r"أمتار|متر(ات)?|م\b"),
+    _distance_rule("<n> متر", DistanceUnit.METRE, r"أمتار|متر(ات)?|م"),
     _distance_rule("<n> ميل", DistanceUnit.MILE, r"أميال|ميل|ميول"),
     _distance_rule("<n> ياردة", DistanceUnit.YARD, r"ياردات|يارد[ةه]?"),
     _distance_rule("<n> قدم", DistanceUnit.FOOT, r"أقدام|قدم"),
-    _distance_rule("<n> بوصة", DistanceUnit.INCH, r"بوصات|بوص[ةه]?|إنش|انش"),
+    _distance_rule("<n> بوصة", DistanceUnit.INCH, r"بوصات|بوص[ةه]|إنش|انش"),
 )

@@ -23,6 +23,10 @@ from puckling.dimensions.time.grain import Grain
 from puckling.predicates import is_duration, is_grain, is_natural, number_between
 from puckling.types import Predicate, RegexMatch, Rule, Token, predicate, regex
 
+_BOUNDARY_L = r"(?<![\p{L}\p{N}_])"
+_NUMBER_BOUNDARY_L = r"(?<![\p{L}\p{N}_.])"
+_BOUNDARY_R = r"(?![\p{L}\p{N}_])"
+
 # ---------------------------------------------------------------------------
 # Numeral fallback (digit + a few common English number words).
 #
@@ -89,13 +93,13 @@ def _prod_integer_word(tokens: tuple[Token, ...]) -> Token | None:
 
 _rule_integer_digits = Rule(
     name="integer (digits) [duration fallback]",
-    pattern=(regex(r"\d+"),),
+    pattern=(regex(rf"{_NUMBER_BOUNDARY_L}\d+"),),
     prod=_prod_integer,
 )
 
 _rule_decimal_digits = Rule(
     name="decimal (digits) [duration fallback]",
-    pattern=(regex(r"\d+\.\d+"),),
+    pattern=(regex(rf"{_NUMBER_BOUNDARY_L}\d+\.\d+"),),
     prod=_prod_decimal,
 )
 
@@ -103,10 +107,10 @@ _rule_integer_words = Rule(
     name="integer (word) [duration fallback]",
     pattern=(
         regex(
-            r"(zero|one|two|three|four|five|six|seven|eight|nine|ten"
+            rf"{_BOUNDARY_L}(zero|one|two|three|four|five|six|seven|eight|nine|ten"
             r"|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen"
             r"|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy"
-            r"|eighty|ninety|hundred)"
+            rf"|eighty|ninety|hundred){_BOUNDARY_R}"
         ),
     ),
     prod=_prod_integer_word,
@@ -132,12 +136,10 @@ def _grain_rule(name: str, pattern: str, grain: Grain) -> Rule:
     def prod(_tokens: tuple[Token, ...]) -> Token | None:
         return Token(dim="time_grain", value=grain)
 
-    return Rule(name=name, pattern=(regex(pattern),), prod=prod)
+    return Rule(name=name, pattern=(regex(rf"{pattern}{_BOUNDARY_R}"),), prod=prod)
 
 
-_grain_rules: tuple[Rule, ...] = tuple(
-    _grain_rule(name, pat, g) for (name, pat, g) in _GRAINS
-)
+_grain_rules: tuple[Rule, ...] = tuple(_grain_rule(name, pat, g) for (name, pat, g) in _GRAINS)
 
 
 # ---------------------------------------------------------------------------
@@ -172,9 +174,7 @@ def _to_seconds(d: DurationValue) -> int:
     return d.value * _SECONDS_PER_GRAIN[d.grain]
 
 
-def _combine(
-    coarse: DurationValue, fine: DurationValue
-) -> DurationValue | None:
+def _combine(coarse: DurationValue, fine: DurationValue) -> DurationValue | None:
     """Sum two durations, expressed in the *finer* grain.
 
     Mirrors Duckling's ``Semigroup DurationData`` instance, which converts both
@@ -237,7 +237,7 @@ def _prod_quarter_of_an_hour(_tokens: tuple[Token, ...]) -> Token | None:
 
 _rule_quarter_of_an_hour = Rule(
     name="quarter of an hour",
-    pattern=(regex(r"(1/4\s?h(our)?|(a\s)?quarter of an hour)"),),
+    pattern=(regex(rf"{_BOUNDARY_L}(?:1/4\s*h(?:our)?|(?:a\s+)?quarter of an hour){_BOUNDARY_R}"),),
     prod=_prod_quarter_of_an_hour,
 )
 
@@ -248,7 +248,7 @@ def _prod_half_hour_abbrev(_tokens: tuple[Token, ...]) -> Token | None:
 
 _rule_half_hour_abbrev = Rule(
     name="half an hour (abbrev).",
-    pattern=(regex(r"1/2\s?h"),),
+    pattern=(regex(rf"{_BOUNDARY_L}1/2\s*h(?:our)?{_BOUNDARY_R}"),),
     prod=_prod_half_hour_abbrev,
 )
 
@@ -259,7 +259,9 @@ def _prod_three_quarters_of_an_hour(_tokens: tuple[Token, ...]) -> Token | None:
 
 _rule_three_quarters_of_an_hour = Rule(
     name="three-quarters of an hour",
-    pattern=(regex(r"(3/4\s?h(our)?|three(\s|-)quarters of an hour)"),),
+    pattern=(
+        regex(rf"{_BOUNDARY_L}(?:3/4\s*h(?:our)?|three(?:\s|-)quarters of an hour){_BOUNDARY_R}"),
+    ),
     prod=_prod_three_quarters_of_an_hour,
 )
 
@@ -270,7 +272,7 @@ def _prod_fortnight(_tokens: tuple[Token, ...]) -> Token | None:
 
 _rule_fortnight = Rule(
     name="fortnight",
-    pattern=(regex(r"(a|one)?\s?fortnight"),),
+    pattern=(regex(rf"{_BOUNDARY_L}(?:(?:a|one)\s+)?fortnight{_BOUNDARY_R}"),),
     prod=_prod_fortnight,
 )
 
@@ -311,7 +313,7 @@ _rule_numeral_more = Rule(
     name="<integer> more <unit-of-duration>",
     pattern=(
         predicate(is_natural, "is_natural"),
-        regex(r"more|additional|extra|less|fewer"),
+        regex(rf"{_BOUNDARY_L}(?:more|additional|extra|less|fewer){_BOUNDARY_R}"),
         predicate(is_grain, "is_grain"),
     ),
     prod=_prod_numeral_more,
@@ -336,7 +338,7 @@ def _prod_dot_number_hours(tokens: tuple[Token, ...]) -> Token | None:
 _rule_dot_number_hours = Rule(
     name="number.number hours",
     pattern=(
-        regex(r"(\d+)\.(\d+)"),
+        regex(rf"{_NUMBER_BOUNDARY_L}(\d+)\.(\d+)"),
         predicate(_is_grain_of(Grain.HOUR), "is_grain hour"),
     ),
     prod=_prod_dot_number_hours,
@@ -354,7 +356,7 @@ _rule_and_half_hour = Rule(
     name="<integer> and an half hour",
     pattern=(
         predicate(is_natural, "is_natural"),
-        regex(r"and (an? )?half hours?"),
+        regex(rf"{_BOUNDARY_L}and\s+(?:an?\s+)?half\s+hours?{_BOUNDARY_R}"),
     ),
     prod=_prod_and_half_hour,
 )
@@ -371,7 +373,7 @@ _rule_and_half_minute = Rule(
     name="<integer> and a half minutes",
     pattern=(
         predicate(is_natural, "is_natural"),
-        regex(r"and (an? )?half min(ute)?s?"),
+        regex(rf"{_BOUNDARY_L}and\s+(?:an?\s+)?half\s+min(?:ute)?s?{_BOUNDARY_R}"),
     ),
     prod=_prod_and_half_minute,
 )
@@ -385,7 +387,7 @@ def _prod_a_grain(tokens: tuple[Token, ...]) -> Token | None:
 _rule_a_grain = Rule(
     name="a <unit-of-duration>",
     pattern=(
-        regex(r"an?"),
+        regex(rf"{_BOUNDARY_L}an?\s+"),
         predicate(is_grain, "is_grain"),
     ),
     prod=_prod_a_grain,
@@ -403,7 +405,7 @@ def _prod_half_a_grain(tokens: tuple[Token, ...]) -> Token | None:
 _rule_half_a_grain = Rule(
     name="half a <time-grain>",
     pattern=(
-        regex(r"(1/2|half)( an?)?"),
+        regex(rf"{_BOUNDARY_L}(?:1/2\s*|half(?:\s+an?)?\s+)"),
         predicate(is_grain, "is_grain"),
     ),
     prod=_prod_half_a_grain,
@@ -421,9 +423,9 @@ def _prod_one_grain_and_half(tokens: tuple[Token, ...]) -> Token | None:
 _rule_one_grain_and_half = Rule(
     name="a <unit-of-duration> and a half",
     pattern=(
-        regex(r"an?|one"),
+        regex(rf"{_BOUNDARY_L}(?:an?|one)\s+"),
         predicate(is_grain, "is_grain"),
-        regex(r"and (a )?half"),
+        regex(rf"{_BOUNDARY_L}and\s+(?:a\s+)?half{_BOUNDARY_R}"),
     ),
     prod=_prod_one_grain_and_half,
 )
@@ -448,7 +450,7 @@ _rule_hours_and_minutes = Rule(
     name="<integer> hour and <integer>",
     pattern=(
         predicate(is_natural, "is_natural"),
-        regex(r"hours?( and)?"),
+        regex(rf"hours?(?:\s+and)?{_BOUNDARY_R}"),
         predicate(_natural_minute, "is_natural & 1..60"),
     ),
     prod=_prod_hours_and_minutes,
@@ -462,7 +464,7 @@ def _prod_precision(tokens: tuple[Token, ...]) -> Token | None:
 _rule_precision = Rule(
     name="about|exactly <duration>",
     pattern=(
-        regex(r"(about|around|approximately|exactly)"),
+        regex(rf"{_BOUNDARY_L}(?:about|around|approximately|exactly){_BOUNDARY_R}"),
         predicate(is_duration, "is_duration"),
     ),
     prod=_prod_precision,
@@ -486,7 +488,7 @@ _rule_composite_commas_and = Rule(
     pattern=(
         predicate(is_natural, "is_natural"),
         predicate(is_grain, "is_grain"),
-        regex(r",|and"),
+        regex(rf",|{_BOUNDARY_L}and{_BOUNDARY_R}"),
         predicate(is_duration, "is_duration"),
     ),
     prod=_prod_composite_commas_and,
@@ -529,7 +531,7 @@ _rule_composite_and = Rule(
     name="composite <duration> and <duration>",
     pattern=(
         predicate(is_duration, "is_duration"),
-        regex(r",|and"),
+        regex(rf",|{_BOUNDARY_L}and{_BOUNDARY_R}"),
         predicate(is_duration, "is_duration"),
     ),
     prod=_prod_composite_and,
@@ -554,7 +556,7 @@ def _prod_dot_number_minutes(tokens: tuple[Token, ...]) -> Token | None:
 _rule_dot_number_minutes = Rule(
     name="number.number minutes",
     pattern=(
-        regex(r"(\d+)\.(\d+)"),
+        regex(rf"{_NUMBER_BOUNDARY_L}(\d+)\.(\d+)"),
         predicate(_is_grain_of(Grain.MINUTE), "is_grain minute"),
     ),
     prod=_prod_dot_number_minutes,
@@ -576,7 +578,9 @@ _rule_n_and_quarter_hour = Rule(
     name="<Integer> and <Integer> quarter of hour",
     pattern=(
         predicate(is_natural, "is_natural"),
-        regex(r"and (a |an |one |two |three )?quarters?( of)?( an)?"),
+        regex(
+            rf"{_BOUNDARY_L}and\s+((?:a|an|one|two|three)\s+)?quarters?(?:\s+of)?(?:\s+an?)?{_BOUNDARY_R}"
+        ),
         predicate(_is_grain_of(Grain.HOUR), "is_grain hour"),
     ),
     prod=_prod_n_and_quarter_hour,

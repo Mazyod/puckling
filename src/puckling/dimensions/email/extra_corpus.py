@@ -3,8 +3,8 @@
 This module sits alongside the upstream-faithful ``corpus.py`` and exists to
 exercise scenarios Duckling's tiny example list does not cover but that the
 underlying regex still handles correctly: in-sentence emails, trailing
-punctuation, multiple emails per phrase, and miscellaneous valid local-part /
-domain shapes.
+punctuation, multiple emails per phrase, miscellaneous valid local-part /
+domain shapes, and clear non-email neighbours.
 """
 
 from __future__ import annotations
@@ -65,6 +65,20 @@ CORPUS: tuple[Example, ...] = (
         {"value": "name+tag@example.co", "type": "value"},
         ["name+tag@example.co", "send to name+tag@example.co for routing"],
     ),
+    examples(
+        {"value": "first.last+tag@sub.example.co.uk", "type": "value"},
+        [
+            "first.last+tag@sub.example.co.uk",
+            "route first.last+tag@sub.example.co.uk today",
+        ],
+    ),
+    examples(
+        {"value": "first_last@example-domain.com", "type": "value"},
+        [
+            "first_last@example-domain.com",
+            "Use first_last@example-domain.com for alerts",
+        ],
+    ),
 )
 
 
@@ -82,11 +96,27 @@ MULTI_EMAIL_CORPUS: tuple[tuple[str, tuple[str, ...]], ...] = (
 
 
 # Phrases that must NOT produce an email entity. Mirrors upstream's
-# negativeCorpus plus a few neighbour cases that should also be rejected.
+# negativeCorpus plus focused neighbour cases that should also be rejected.
 NEGATIVE_CORPUS: tuple[str, ...] = (
     "hey@6",
     "hey@you",
     "no-at-sign-here.com",
     "@no-local-part.com",
     "trailing-at@",
+    "empty@",
+    "foo@",
+    "foo@bar",
+    "foo@example",
+    "foo@example.",
+    "foo@.example.com",
+    "foo@example..com",
+    "foo@@example.com",
+    "foo@bar .com",
+    "foo@bar. com",
+    "foo!@example.com",
+    "foo()@example.com",
+    "http://foo@bar",
+    "https://example.com/@support",
+    "https://example.com/user@example",
+    "example.com/@support",
 )

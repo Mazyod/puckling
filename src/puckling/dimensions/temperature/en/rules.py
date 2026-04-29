@@ -170,11 +170,19 @@ def _make_open_interval_prod(
 _VALUE_ONLY = predicate(_IS_VALUE_ONLY_STRICT, "is_value_only")
 _VALUE_ONLY_OR_DEGREE = predicate(_IS_VALUE_ONLY_OR_DEGREE, "is_value_only(allow_degree)")
 _SIMPLE_TEMP = predicate(_is_simple_temperature, "is_simple_temperature")
+_NUMERIC_LITERAL = r"(?:(?<![\w.,+\-])-?\d+(?:\.\d+)?|(?<=\d-)\d+(?:\.\d+)?)(?![\d.,])"
+_UNIT_BOUNDARY = r"(?![A-Za-z0-9_.])"
+_CELSIUS_LITERAL = r"c(el[cs]?(ius)?)?\.?"
+_FAHRENHEIT_LITERAL = r"f(ah?rh?eh?n(h?eit)?)?\.?"
+_DEGREE_SYMBOL = (
+    rf"°(?=(?:\s*(?:{_CELSIUS_LITERAL}|{_FAHRENHEIT_LITERAL}){_UNIT_BOUNDARY})"
+    r"|(?!(?:\s*[cf]|\s*°)))"
+)
 
 RULES: tuple[Rule, ...] = (
     Rule(
         name="integer (numeric)",
-        pattern=(regex(r"-?\d+(\.\d+)?"),),
+        pattern=(regex(_NUMERIC_LITERAL),),
         prod=_prod_numeral_seed,
     ),
     Rule(
@@ -184,17 +192,17 @@ RULES: tuple[Rule, ...] = (
     ),
     Rule(
         name="<latent temp> degrees",
-        pattern=(_VALUE_ONLY, regex(r"(deg(ree?)?s?\.?)|°")),
+        pattern=(_VALUE_ONLY, regex(rf"deg(ree?)?s?\.?{_UNIT_BOUNDARY}|{_DEGREE_SYMBOL}")),
         prod=_make_unit_rewriter(TemperatureUnit.DEGREE),
     ),
     Rule(
         name="<temp> Celsius",
-        pattern=(_VALUE_ONLY_OR_DEGREE, regex(r"c(el[cs]?(ius)?)?\.?")),
+        pattern=(_VALUE_ONLY_OR_DEGREE, regex(rf"{_CELSIUS_LITERAL}{_UNIT_BOUNDARY}")),
         prod=_make_unit_rewriter(TemperatureUnit.CELSIUS),
     ),
     Rule(
         name="<temp> Fahrenheit",
-        pattern=(_VALUE_ONLY_OR_DEGREE, regex(r"f(ah?rh?eh?n(h?eit)?)?\.?")),
+        pattern=(_VALUE_ONLY_OR_DEGREE, regex(rf"{_FAHRENHEIT_LITERAL}{_UNIT_BOUNDARY}")),
         prod=_make_unit_rewriter(TemperatureUnit.FAHRENHEIT),
     ),
     Rule(

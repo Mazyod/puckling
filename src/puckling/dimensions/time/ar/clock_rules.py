@@ -24,6 +24,33 @@ from puckling.types import RegexMatch, Rule, Token, predicate, regex
 # ---------------------------------------------------------------------------
 # Token helpers
 
+_WORD_BOUNDARY_LEFT = r"(?:(?<![\p{L}\p{N}_])|(?<=و))"
+_WORD_BOUNDARY_RIGHT = r"(?![\p{L}\p{N}_])"
+_NUMERIC_BOUNDARY_LEFT = r"(?<![\p{L}\p{N}_])"
+_NUMERIC_BOUNDARY_RIGHT = r"(?![\p{L}\p{N}_])"
+_VALID_MINUTE_RE = r"(?:[0-5]?[0-9]|[٠-٥]?[٠-٩])"
+_VALID_AND_CONTINUATION_RE = (
+    rf"(?:\s*نصف(?:\s+ساع[ةه])?|\s*ربع(?:\s+ساع[ةه])?"
+    rf"|\s*{_VALID_MINUTE_RE}\s+(?:دقيق[ةه]|دقائق)){_WORD_BOUNDARY_RIGHT}"
+)
+_VALID_QUARTER_TO_RE = rf"\s+ربعا?{_WORD_BOUNDARY_RIGHT}"
+_CLOCK_CONTINUATION_GUARD = (
+    rf"(?!\s+و(?!{_VALID_AND_CONTINUATION_RE}))"
+    rf"(?!\s+[إا]لا(?!{_VALID_QUARTER_TO_RE}))"
+)
+
+
+def _word_re(pattern: str) -> str:
+    return rf"{_WORD_BOUNDARY_LEFT}(?:{pattern}){_WORD_BOUNDARY_RIGHT}"
+
+
+def _numeric_re(pattern: str) -> str:
+    return rf"{_NUMERIC_BOUNDARY_LEFT}(?:{pattern}){_NUMERIC_BOUNDARY_RIGHT}"
+
+
+def _clock_head_re(pattern: str) -> str:
+    return _word_re(pattern) + _CLOCK_CONTINUATION_GUARD
+
 
 def _v(value: TimeOfDayValue) -> Token:
     return Token(dim="time", value=value)
@@ -69,13 +96,13 @@ def _make_word_hour_rule(pat: str, base_hour: int) -> Rule:
         # Latent: a bare ordinal hour without "الساعة" or AM/PM is ambiguous.
         return _v(TimeOfDayValue(hour=h, minute=0, grain=Grain.HOUR, latent=True))
 
-    return Rule(name=f"word-hour:{base_hour}", pattern=(regex(pat),), prod=prod)
+    return Rule(name=f"word-hour:{base_hour}", pattern=(regex(_clock_head_re(pat)),), prod=prod)
 
 
 # ---------------------------------------------------------------------------
 # "الساعة <X>" — numeric or word hour with the o'clock marker, non-latent.
 
-_HOUR_NUM_RE = r"([0-9٠-٩]{1,2})"
+_HOUR_NUM_RE = _numeric_re(r"([0-9٠-٩]{1,2})")
 _OCLOCK_RE = r"(?:ال)?ساع[ةه]"
 
 
@@ -94,7 +121,7 @@ def _prod_oclock_numeric(matched: tuple[Token, ...]) -> Token | None:
 
 _oclock_numeric_rule = Rule(
     name="الساعة <H>",
-    pattern=(regex(rf"{_OCLOCK_RE}\s+{_HOUR_NUM_RE}"),),
+    pattern=(regex(rf"{_word_re(_OCLOCK_RE)}\s+{_HOUR_NUM_RE}{_CLOCK_CONTINUATION_GUARD}"),),
     prod=_prod_oclock_numeric,
 )
 
@@ -109,7 +136,7 @@ def _prod_oclock_word(matched: tuple[Token, ...]) -> Token | None:
 
 _oclock_word_rule = Rule(
     name="الساعة <word-hour>",
-    pattern=(regex(_OCLOCK_RE), predicate(_is_clock, "is_clock")),
+    pattern=(regex(_word_re(_OCLOCK_RE)), predicate(_is_clock, "is_clock")),
     prod=_prod_oclock_word,
 )
 
@@ -128,13 +155,13 @@ def _prod_midnight(_: tuple[Token, ...]) -> Token:
 
 _noon_rule = Rule(
     name="noon",
-    pattern=(regex(r"منتصف\s+النهار"),),
+    pattern=(regex(_word_re(r"منتصف\s+النهار")),),
     prod=_prod_noon,
 )
 
 _midnight_rule = Rule(
     name="midnight",
-    pattern=(regex(r"منتصف\s+الليل"),),
+    pattern=(regex(_word_re(r"منتصف\s+الليل")),),
     prod=_prod_midnight,
 )
 
@@ -148,8 +175,8 @@ _midnight_rule = Rule(
 #   For 24-hour H (>= 13) the suffix is treated as a tag; we keep H as-is.
 
 # "قبل الظهر" (before noon) is AM-equivalent and lives in `_AM_RE`.
-_AM_RE = r"(?:صباحا?|الصبح|فجرا?|قبل\s+الظهر)"
-_PM_RE = r"(?:مساءا?|ليلا?|بعد\s+الظهر|بعد\s+المغرب|عصرا?|ظهرا?)"
+_AM_RE = _word_re(r"(?:صباحا?|الصبح|فجرا?|قبل\s+الظهر)")
+_PM_RE = _word_re(r"(?:مساءا?|ليلا?|بعد\s+الظهر|بعد\s+المغرب|عصرا?|ظهرا?)")
 
 
 def _to_am(hour: int) -> int:
@@ -281,7 +308,7 @@ _half_past_rule = Rule(
     name="<clock> و نصف",
     pattern=(
         predicate(_is_clock, "is_clock"),
-        regex(r"و\s*نصف(?:\s+ساع[ةه])?"),
+        regex(_word_re(r"و\s*نصف(?:\s+ساع[ةه])?")),
     ),
     prod=_prod_half_past,
 )
@@ -290,7 +317,7 @@ _quarter_past_rule = Rule(
     name="<clock> و ربع",
     pattern=(
         predicate(_is_clock, "is_clock"),
-        regex(r"و\s*ربع(?:\s+ساع[ةه])?"),
+        regex(_word_re(r"و\s*ربع(?:\s+ساع[ةه])?")),
     ),
     prod=_prod_quarter_past,
 )
@@ -299,7 +326,7 @@ _quarter_to_rule = Rule(
     name="<clock> الا ربع",
     pattern=(
         predicate(_is_clock, "is_clock"),
-        regex(r"[إا]لا\s+ربعا?"),
+        regex(_word_re(r"[إا]لا\s+ربعا?")),
     ),
     prod=_prod_quarter_to,
 )
@@ -331,7 +358,7 @@ _clock_and_minutes_rule = Rule(
     name="<clock> و <M> دقيقة",
     pattern=(
         predicate(_is_clock, "is_clock"),
-        regex(rf"و\s*{_MIN_RE}\s+(?:دقيق[ةه]|دقائق)"),
+        regex(_word_re(rf"و\s*{_MIN_RE}\s+(?:دقيق[ةه]|دقائق)")),
     ),
     prod=_prod_clock_and_minutes,
 )

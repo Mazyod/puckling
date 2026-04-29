@@ -17,13 +17,20 @@ from puckling.dimensions.quantity.types import QuantityValue, quantity
 from puckling.predicates import is_positive
 from puckling.types import Rule, Token, predicate, regex
 
-# Surface form (regex) -> canonical unit string we emit.
-_UNITS: tuple[tuple[str, str, str], ...] = (
-    ("cup", r"cups?", "cup"),
-    ("gram", r"g(?:ram)?s?\.?", "gram"),
-    ("pound", r"(?:lb|pound)s?", "pound"),
-    ("ounce", r"(?:ounces?|oz)", "ounce"),
+# Surface form (regex) -> singular surface form (regex) -> canonical unit string.
+_UNITS: tuple[tuple[str, str, str, str], ...] = (
+    ("cup", r"cups?", r"cup", "cup"),
+    ("gram", r"g(?:ram)?s?\.?", r"g(?:ram)?\.?", "gram"),
+    ("pound", r"(?:lb|pound)s?", r"(?:lb|pound)", "pound"),
+    ("ounce", r"(?:ounces?|oz)", r"(?:ounce|oz)", "ounce"),
 )
+
+_BOUND_L = r"(?<![\p{L}\p{N}.,+-])"
+_BOUND_R = r"(?![\p{L}\p{N}]|[./-][\p{L}])"
+
+
+def _bounded(pattern: str) -> str:
+    return _BOUND_L + r"(?:" + pattern + r")" + _BOUND_R
 
 
 def _digit_prod(tokens: tuple[Token, ...]) -> Token | None:
@@ -46,7 +53,7 @@ def _digit_prod(tokens: tuple[Token, ...]) -> Token | None:
 _RULE_DIGITS = Rule(
     name="integer/decimal (quantity-local)",
     # Matches "2", "2.5", "0.75", and the bare-leading-dot ".75".
-    pattern=(regex(r"\d+(?:\.\d+)?|\.\d+"),),
+    pattern=(regex(_bounded(r"\d+(?:\.\d+)?|\.\d+")),),
     prod=_digit_prod,
 )
 
@@ -84,6 +91,8 @@ def _quantity_of_product_prod(tokens: tuple[Token, ...]) -> Token | None:
     # Don't re-attach: keeps "2 cups of flour of cake" from collapsing weirdly.
     if qty.product is not None:
         return None
+    if tokens[1].range.start == tokens[0].range.end:
+        return None
     product_match = tokens[1].value.groups[0]
     if product_match is None:
         return None
@@ -101,7 +110,7 @@ _RULE_QUANTITY_OF_PRODUCT = Rule(
     name="<quantity> of <product>",
     pattern=(
         predicate(_is_quantity, "is_quantity"),
-        regex(r"of\s+(\w+)"),
+        regex(r"of\s+([\p{L}][\p{L}'-]*)(?![\p{L}\p{N}])"),
     ),
     prod=_quantity_of_product_prod,
 )
@@ -118,6 +127,12 @@ _RULE_QUANTITY_OF_PRODUCT = Rule(
 RULES: tuple[Rule, ...] = (
     _RULE_DIGITS,
     _RULE_QUANTITY_OF_PRODUCT,
-    *(_make_numeral_unit_rule(name, rx, unit) for name, rx, unit in _UNITS),
-    *(_make_a_unit_rule(name, rx, unit) for name, rx, unit in _UNITS),
+    *(
+        _make_numeral_unit_rule(name, _bounded(rx), unit)
+        for name, rx, _singular_rx, unit in _UNITS
+    ),
+    *(
+        _make_a_unit_rule(name, _bounded(singular_rx), unit)
+        for name, _rx, singular_rx, unit in _UNITS
+    ),
 )

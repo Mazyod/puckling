@@ -12,19 +12,19 @@ from puckling.corpus import Example, examples
 CORPUS: tuple[Example, ...] = (
     examples(
         {"value": 5, "unit": "kilometre", "type": "value"},
-        ["٥ كم", "5 كيلومتر", "5 كم", "٥ كيلو متر"],
+        ["٥ كم", "5 كيلومتر", "5 كم", "٥ كيلو متر", "5 كيلومترات"],
     ),
     examples(
         {"value": 3, "unit": "metre", "type": "value"},
-        ["3 متر", "٣ متر", "3 أمتار"],
+        ["3 متر", "٣ متر", "3 أمتار", "3 م"],
     ),
     examples(
         {"value": 50, "unit": "centimetre", "type": "value"},
-        ["50 سم", "٥٠ سنتيمتر", "50 سنتي متر"],
+        ["50 سم", "٥٠ سنتيمتر", "50 سنتي متر", "50 سنتيمترات"],
     ),
     examples(
         {"value": 250, "unit": "millimetre", "type": "value"},
-        ["250 مم", "٢٥٠ ميليمتر", "250 مليمتر"],
+        ["250 مم", "٢٥٠ ميليمتر", "250 مليمتر", "250 ملي متر"],
     ),
     examples(
         {"value": 2, "unit": "mile", "type": "value"},
@@ -32,7 +32,7 @@ CORPUS: tuple[Example, ...] = (
     ),
     examples(
         {"value": 4, "unit": "yard", "type": "value"},
-        ["4 ياردة", "٤ ياردات"],
+        ["4 ياردة", "٤ ياردات", "4 يارده"],
     ),
     examples(
         {"value": 6, "unit": "foot", "type": "value"},
@@ -40,6 +40,6 @@ CORPUS: tuple[Example, ...] = (
     ),
     examples(
         {"value": 12, "unit": "inch", "type": "value"},
-        ["12 بوصة", "١٢ إنش", "12 انش"],
+        ["12 بوصة", "١٢ إنش", "12 انش", "12 بوصات", "١٢ بوصه"],
     ),
 )

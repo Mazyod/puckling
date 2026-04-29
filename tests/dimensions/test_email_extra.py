@@ -36,13 +36,24 @@ def test_multiple_emails_per_phrase(phrase, expected_emails, ctx_en):
 
 @pytest.mark.parametrize("phrase", NEGATIVE_CORPUS)
 def test_extra_negative_corpus(phrase, ctx_en):
+    assert parse(phrase, ctx_en, Options(), dims=("email",)) == []
+
+
+@pytest.mark.parametrize(
+    ("phrase", "expected_body"),
+    [
+        ("My email is alice@exAmple.io.", "alice@exAmple.io"),
+        ("My email is alice@exAmple.io,", "alice@exAmple.io"),
+        ("hello, alice@exAmple.io!", "alice@exAmple.io"),
+        ("Confirm alice@exAmple.io?", "alice@exAmple.io"),
+        ("Use alice@exAmple.io;next", "alice@exAmple.io"),
+        ("(yo+yo@blah.org)", "yo+yo@blah.org"),
+        ("<1234+abc@x.net>", "1234+abc@x.net"),
+        ('Quote: "jean-jacques@stuff.co.uk"', "jean-jacques@stuff.co.uk"),
+    ],
+)
+def test_surrounding_punctuation_is_not_part_of_email(phrase, expected_body, ctx_en):
     entities = parse(phrase, ctx_en, Options(), dims=("email",))
-    assert not entities, f"unexpected entity for {phrase!r}: {entities!r}"
-
-
-def test_trailing_period_is_not_part_of_email(ctx_en):
-    """The regex requires ``[\\w_-]+`` after each dot, so a trailing period in a
-    sentence (``...example.io.``) must stay outside the entity body."""
-    entities = parse("My email is alice@exAmple.io.", ctx_en, Options(), dims=("email",))
     assert entities
-    assert entities[0].body == "alice@exAmple.io"
+    assert entities[0].body == expected_body
+    assert value_matches(entities[0].value, {"value": expected_body, "type": "value"})

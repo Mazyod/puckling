@@ -6,7 +6,7 @@ import pytest
 
 from puckling import Options, parse
 from puckling.corpus import pytest_examples
-from puckling.dimensions.url.corpus import CORPUS, NEGATIVE_CORPUS
+from puckling.dimensions.url.corpus import AR_CONTEXT_NEGATIVE_CORPUS, CORPUS, NEGATIVE_CORPUS
 from tests.value_helpers import value_matches
 
 
@@ -26,6 +26,12 @@ def test_corpus_ar(phrase, expected, ctx_ar):
 
 
 @pytest.mark.parametrize("phrase", NEGATIVE_CORPUS)
-def test_negative_corpus(phrase, ctx_en):
+def test_negative_corpus_en(phrase, ctx_en):
     entities = parse(phrase, ctx_en, Options(), dims=("url",))
-    assert not entities, f"unexpected url entity for {phrase!r}: {entities!r}"
+    assert entities == []
+
+
+@pytest.mark.parametrize("phrase", AR_CONTEXT_NEGATIVE_CORPUS)
+def test_negative_corpus_ar(phrase, ctx_ar):
+    entities = parse(phrase, ctx_ar, Options(), dims=("url",))
+    assert entities == []

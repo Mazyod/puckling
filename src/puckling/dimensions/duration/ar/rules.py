@@ -16,6 +16,25 @@ from puckling.predicates import is_grain, is_natural
 from puckling.types import RegexMatch, Rule, Token, predicate, regex
 
 # ---------------------------------------------------------------------------
+# Boundary helpers.
+
+# Plain `\b` is unreliable for Arabic in `regex`; explicitly require that
+# unit words do not sit inside a larger letter/digit token.
+_WORD_BOUNDARY_LEFT = r"(?:(?<![\p{L}\p{N}_])|(?<=و))"
+_WORD_BOUNDARY_RIGHT = r"(?![\p{L}\p{N}_])"
+_NUMERIC_BOUNDARY_LEFT = r"(?<![\p{L}\p{N}_.,٫٬/+−])(?<!--)"
+_NUMERIC_BOUNDARY_RIGHT = r"(?![\p{L}\p{N}_.,٫٬/+−-])"
+
+
+def _word_re(pattern: str) -> str:
+    return rf"{_WORD_BOUNDARY_LEFT}(?:{pattern}){_WORD_BOUNDARY_RIGHT}"
+
+
+def _numeric_re(pattern: str) -> str:
+    return rf"{_NUMERIC_BOUNDARY_LEFT}(?:{pattern}){_NUMERIC_BOUNDARY_RIGHT}"
+
+
+# ---------------------------------------------------------------------------
 # Rule factories.
 
 def _grain_rule(name: str, pattern: str, grain: Grain) -> Rule:
@@ -24,7 +43,7 @@ def _grain_rule(name: str, pattern: str, grain: Grain) -> Rule:
     def prod(_: tuple[Token, ...]) -> Token | None:
         return Token(dim="time_grain", value=grain)
 
-    return Rule(name=name, pattern=(regex(pattern),), prod=prod)
+    return Rule(name=name, pattern=(regex(_word_re(pattern)),), prod=prod)
 
 
 def _fixed_duration_rule(name: str, pattern: str, value: int, grain: Grain) -> Rule:
@@ -33,7 +52,7 @@ def _fixed_duration_rule(name: str, pattern: str, value: int, grain: Grain) -> R
     def prod(_: tuple[Token, ...]) -> Token | None:
         return Token(dim="duration", value=duration(value, grain))
 
-    return Rule(name=name, pattern=(regex(pattern),), prod=prod)
+    return Rule(name=name, pattern=(regex(_word_re(pattern)),), prod=prod)
 
 
 def _word_numeral_rule(name: str, pattern: str, value: int) -> Rule:
@@ -42,7 +61,7 @@ def _word_numeral_rule(name: str, pattern: str, value: int) -> Rule:
     def prod(_: tuple[Token, ...]) -> Token | None:
         return Token(dim="numeral", value=NumeralValue(value=value))
 
-    return Rule(name=name, pattern=(regex(pattern),), prod=prod)
+    return Rule(name=name, pattern=(regex(_word_re(pattern)),), prod=prod)
 
 
 def _grain_token_value(t: Token) -> Grain | None:
@@ -82,7 +101,7 @@ def _prod_arabic_digits(tokens: tuple[Token, ...]) -> Token | None:
 
 _digit_numeral = Rule(
     name="duration-ar digit numeral",
-    pattern=(regex(r"[٠-٩0-9]+"),),
+    pattern=(regex(_numeric_re(r"[٠-٩0-9]+")),),
     prod=_prod_arabic_digits,
 )
 
@@ -150,7 +169,7 @@ def _prod_dot_number_hours(tokens: tuple[Token, ...]) -> Token | None:
 
 _dot_number_hours = Rule(
     name="number.number hours",
-    pattern=(regex(r"(\d+)\.(\d+) *ساع(?:ة|ات)"),),
+    pattern=(regex(_numeric_re(r"(\d+)\.(\d+) *ساع(?:ة|ات)")),),
     prod=_prod_dot_number_hours,
 )
 
@@ -167,13 +186,38 @@ def _prod_integer_and_half_hour(tokens: tuple[Token, ...]) -> Token | None:
 
 _integer_and_half_hour = Rule(
     name="<integer> and an half hour",
-    pattern=(predicate(is_natural, "is_natural"), regex(r"و ?نصف? ساع[ةه]")),
+    pattern=(
+        predicate(is_natural, "is_natural"),
+        regex(r"و ?نصف? ساع[ةه]" + _WORD_BOUNDARY_RIGHT),
+    ),
     prod=_prod_integer_and_half_hour,
 )
 
 
 # ---------------------------------------------------------------------------
-# Dual-form shortcuts (regex-only, when the noun lacks a base grain match).
+# Singular and dual-form shortcuts (regex-only).
+
+_one_second = _fixed_duration_rule(
+    "one second", r"ثاني[ةه]|لحظ[ةه]", 1, Grain.SECOND
+)
+_one_minute = _fixed_duration_rule(
+    "one minute", r"دقيق[ةه]", 1, Grain.MINUTE
+)
+_one_hour = _fixed_duration_rule(
+    "one hour", r"ساع[ةه]", 1, Grain.HOUR
+)
+_one_day = _fixed_duration_rule(
+    "one day", r"يوم", 1, Grain.DAY
+)
+_one_week = _fixed_duration_rule(
+    "one week", r"[أا]سبوع", 1, Grain.WEEK
+)
+_one_month = _fixed_duration_rule(
+    "one month", r"شهر", 1, Grain.MONTH
+)
+_one_year = _fixed_duration_rule(
+    "one year", r"سن[ةه]|عام", 1, Grain.YEAR
+)
 
 _two_seconds = _fixed_duration_rule(
     "two seconds", r"ثانيتين|ثانيتان|لحظتين|لحظتان", 2, Grain.SECOND
@@ -184,34 +228,17 @@ _two_minutes = _fixed_duration_rule(
 _two_hours = _fixed_duration_rule(
     "two hours", r"ساعتين|ساعتان", 2, Grain.HOUR
 )
+_two_days = _fixed_duration_rule(
+    "two days", r"يومين|يومان", 2, Grain.DAY
+)
+_two_weeks = _fixed_duration_rule(
+    "two weeks", r"[أا]سبوعين|[أا]سبوعان", 2, Grain.WEEK
+)
+_two_months = _fixed_duration_rule(
+    "two months", r"شهرين|شهران", 2, Grain.MONTH
+)
 _two_years = _fixed_duration_rule(
     "dual years", r"سنتين|سنتان|عامين|عامان", 2, Grain.YEAR
-)
-
-
-# ---------------------------------------------------------------------------
-# Generic <grain> + dual suffix → 2 * grain (covers day/week/month/etc.).
-
-def _prod_n_unit(value: int):
-    def prod(tokens: tuple[Token, ...]) -> Token | None:
-        grain = _grain_token_value(tokens[0])
-        if grain is None:
-            return None
-        return Token(dim="duration", value=DurationValue(value=value, grain=grain))
-
-    return prod
-
-
-_dual_unit = Rule(
-    name="dual <unit-of-duration>",
-    pattern=(predicate(is_grain, "is_grain"), regex(r"(?:ان|ين)")),
-    prod=_prod_n_unit(2),
-)
-
-_single_unit = Rule(
-    name="single <unit-of-duration>",
-    pattern=(predicate(is_grain, "is_grain"),),
-    prod=_prod_n_unit(1),
 )
 
 
@@ -255,11 +282,19 @@ RULES: tuple[Rule, ...] = (
     _integer_quotes,
     _dot_number_hours,
     _integer_and_half_hour,
+    _one_second,
+    _one_minute,
+    _one_hour,
+    _one_day,
+    _one_week,
+    _one_month,
+    _one_year,
     _two_seconds,
     _two_minutes,
     _two_hours,
+    _two_days,
+    _two_weeks,
+    _two_months,
     _two_years,
-    _dual_unit,
-    _single_unit,
     _integer_unit,
 )

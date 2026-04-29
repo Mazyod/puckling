@@ -13,6 +13,9 @@ CORPUS: tuple[Example, ...] = (
     examples({"value": 3, "type": "ordinal"}, ["third", "3rd"]),
     examples({"value": 4, "type": "ordinal"}, ["fourth", "4th"]),
     examples({"value": 8, "type": "ordinal"}, ["eighth", "8th"]),
+    examples({"value": 11, "type": "ordinal"}, ["eleventh", "11th"]),
+    examples({"value": 12, "type": "ordinal"}, ["twelfth", "12th"]),
+    examples({"value": 13, "type": "ordinal"}, ["thirteenth", "13th"]),
     examples(
         {"value": 25, "type": "ordinal"},
         [

@@ -17,7 +17,11 @@ CORPUS: tuple[Example, ...] = (
     ),
     examples(
         {"value": 10, "unit": "USD", "type": "value"},
-        ["$10", "$ 10", "10 $", "10$", "10 دولار"],
+        ["$10", "$ 10", "10 $", "10$", "10 دولار", "10 دولارات"],
+    ),
+    examples(
+        {"value": 20.43, "unit": "USD", "type": "value"},
+        ["20.43 $"],
     ),
     examples(
         {"value": 20, "unit": "EUR", "type": "value"},
@@ -40,6 +44,10 @@ CORPUS: tuple[Example, ...] = (
         ["٥٠ دينار", "50 دينار"],
     ),
     examples(
+        {"value": 10.5, "unit": "Dinar", "type": "value"},
+        ["١٠٫٥ دينار"],
+    ),
+    examples(
         {"value": 42, "unit": "LBP", "type": "value"},
         ["42 LBP", "42 ليرة لبنانية", "42 ليرات لبنانية"],
     ),
@@ -58,6 +66,10 @@ CORPUS: tuple[Example, ...] = (
     examples(
         {"value": 5, "unit": "JOD", "type": "value"},
         ["5 دينار اردني", "5 دنانير أردنية"],
+    ),
+    examples(
+        {"value": 5, "unit": "ILS", "type": "value"},
+        ["5 شيقل", "5 شواقل"],
     ),
     examples(
         {"value": 100, "unit": "AED", "type": "value"},

@@ -15,6 +15,7 @@ CORPUS: tuple[Example, ...] = (
             "37° سلزيوس",
             "37 ° سلزيوس",
             "37 درجة سلزيوس",
+            "٣٧° سلزيوس",
             # TODO(puckling): edge case — "سبع وثلاثون سلزيوس" needs AR spelled-out numerals.
         ],
     ),
@@ -24,6 +25,14 @@ CORPUS: tuple[Example, ...] = (
             "30 درجة مئوية",
             "٣٠ درجة مئوية",
             "30 سلزيوس",
+            "٣٠°س",
+            "30 °س",
+        ],
+    ),
+    examples(
+        {"value": 30.5, "unit": "celsius", "type": "value"},
+        [
+            "٣٠.٥ درجة مئوية",
         ],
     ),
     examples(
@@ -31,7 +40,14 @@ CORPUS: tuple[Example, ...] = (
         [
             "70° فهرنهايت",
             "70 درجة فهرنهايت",
+            "٧٠ فهرنهايت",
             # TODO(puckling): edge case — "سبعون فهرنهايت" needs AR spelled-out numerals.
+        ],
+    ),
+    examples(
+        {"value": 2.5, "unit": "degree", "type": "value"},
+        [
+            "٢٫٥ درجة",
         ],
     ),
     examples(
@@ -47,8 +63,15 @@ CORPUS: tuple[Example, ...] = (
         [
             "-2°",
             "- 2 درجة",
+            "-٢ درجة",
             "درجتين تحت الصفر",
             "2 تحت الصفر",
+        ],
+    ),
+    examples(
+        {"value": 2, "unit": "degree", "type": "value"},
+        [
+            "درجتان",
         ],
     ),
 )

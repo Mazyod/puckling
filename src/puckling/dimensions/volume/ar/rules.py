@@ -16,7 +16,13 @@ from puckling.types import Rule, Token, predicate, regex
 # ---------------------------------------------------------------------------
 # numeric handling — emit a numeral from Arabic-Indic or ASCII digits.
 
-_NUMBER_PATTERN = r"[٠-٩]+(٫[٠-٩]+)?|\d+(\.\d+)?"
+_NUMERIC_BOUND_L = r"(?<![\p{L}\p{N}.,٫٬،+\-/])"
+_TOKEN_BOUND_R = r"(?![\p{L}\p{N}_]|[-/])"
+_NUMBER_PATTERN = rf"{_NUMERIC_BOUND_L}(?:[٠-٩]+(?:٫[٠-٩]+)?|\d+(?:\.\d+)?)"
+
+
+def _bounded(pattern: str) -> str:
+    return rf"(?:{pattern}){_TOKEN_BOUND_R}"
 
 
 def _prod_number(tokens: tuple[Token, ...]) -> Token | None:
@@ -44,7 +50,7 @@ def _make_number_unit_rule(name: str, unit_pattern: str, unit: VolumeUnit) -> Ru
 
     return Rule(
         name=name,
-        pattern=(predicate(is_numeral, "is_numeral"), regex(unit_pattern)),
+        pattern=(predicate(is_numeral, "is_numeral"), regex(_bounded(unit_pattern))),
         prod=prod,
     )
 
@@ -82,7 +88,7 @@ def _make_litre_phrase_rule(name: str, pattern: str, value: float) -> Rule:
     def prod(_tokens: tuple[Token, ...]) -> Token | None:
         return Token(dim="volume", value=VolumeValue(value=value, unit=VolumeUnit.LITRE))
 
-    return Rule(name=name, pattern=(regex(pattern),), prod=prod)
+    return Rule(name=name, pattern=(regex(_bounded(pattern)),), prod=prod)
 
 
 _rule_quarter_litre = _make_litre_phrase_rule(

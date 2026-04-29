@@ -46,7 +46,56 @@ CORPUS: tuple[Example, ...] = (
         ),
         ["http://example.com/bar.webm#t=40,80&xywh=160,120,320,240"],
     ),
+    examples(
+        _v("https://localhost:8443/health?check=1", "localhost"),
+        ["https://localhost:8443/health?check=1"],
+    ),
+    examples(
+        _v("http://intranet-server:3000/status", "intranet-server"),
+        ["http://intranet-server:3000/status"],
+    ),
 )
 
 
-NEGATIVE_CORPUS: tuple[str, ...] = ("foo", "MYHOST", "hey:42", "25")
+NEGATIVE_CORPUS: tuple[str, ...] = (
+    "foo",
+    "MYHOST",
+    "hey:42",
+    "25",
+    "http://",
+    "https://",
+    "ftp://",
+    "http//example.com",
+    "http:/example.com",
+    "://example.com",
+    "https:///example.com",
+    "http://example..com",
+    "user@example.com",
+    "first.last@example.co.uk",
+    "contact support@example.com",
+    "mailto:user@example.com",
+    ".com",
+    "...com",
+    "www.",
+    "www..com",
+    "www.example.",
+    "foo..bar.com",
+    "hello.world",
+    "example.com:",
+    "example.com:/path",
+    "localhost:",
+    "localhost:/path",
+    "http://localhost:",
+    "I bought apples and bananas.",
+    "not a url dot com",
+    "Version 1.2.3 is out",
+    "path/to/file",
+)
+
+AR_CONTEXT_NEGATIVE_CORPUS: tuple[str, ...] = (
+    "راسلني على user@example.com",
+    "هذا ليس رابط dot com",
+    "http//example.com",
+    "example.com:",
+    "localhost:",
+)

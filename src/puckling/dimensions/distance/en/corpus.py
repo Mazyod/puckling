@@ -19,7 +19,15 @@ def _value(value: float | int, unit: str) -> dict:
 CORPUS: tuple[Example, ...] = (
     examples(
         _value(3, "kilometre"),
-        ["3 kilometers", "3 km", "3km", "3k", "3.0 km"],
+        [
+            "3 kilometers",
+            "3 km",
+            "3km",
+            "3k",
+            "3.0 km",
+            "about 3 km",
+            "close to 3 km",
+        ],
     ),
     examples(
         _value(8, "mile"),
@@ -31,13 +39,25 @@ CORPUS: tuple[Example, ...] = (
         ["2cm", "2 centimeters"],
     ),
     examples(
+        _value(4, "millimetre"),
+        ["4mm", "4 millimeters"],
+    ),
+    examples(
+        _value(6, "yard"),
+        ["6 yards", "6 yd", "6 yds"],
+    ),
+    examples(
+        _value(9, "foot"),
+        ["9 feet", "9 ft", "9'"],
+    ),
+    examples(
         _value(5, "inch"),
         ["5 in", "5''", '5"'],
         # TODO(puckling): edge case — "five inches" needs Numeral EN word numbers.
     ),
     examples(
         _value(1.87, "metre"),
-        ["1.87 meters"],
+        ["1.87 meters", "1.87 metres"],
     ),
     # Composite values:
     examples(

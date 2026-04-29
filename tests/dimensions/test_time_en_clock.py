@@ -9,6 +9,26 @@ from puckling.corpus import pytest_examples
 from puckling.dimensions.time.en.clock_corpus import CORPUS
 from tests.value_helpers import value_matches
 
+NEGATIVE_CASES: tuple[str, ...] = (
+    # Invalid numeric clock values.
+    "24:60",
+    "23:61",
+    "5:60",
+    "0pm",
+    "00pm",
+    # Malformed clock punctuation or unsupported clock wording.
+    "call at 9:7",
+    "5::30",
+    "5..30pm",
+    "0.10",
+    "00.10",
+    "$0.10",
+    "0.10 dollars",
+    "at 5xm",
+    "half past 25",
+    "quarter to 25",
+)
+
 
 def _matches(actual: dict, expected: dict) -> bool:
     """Loose dict-subset equality.
@@ -27,3 +47,8 @@ def test_clock_corpus(phrase: str, expected: dict, ctx_en) -> None:
     assert any(value_matches(e.value, expected) for e in entities), (
         f"{phrase!r} resolved to {[e.value for e in entities]}, expected {expected}"
     )
+
+
+@pytest.mark.parametrize("phrase", NEGATIVE_CASES)
+def test_clock_negative_cases(phrase: str, ctx_en) -> None:
+    assert parse(phrase, ctx_en, Options(), dims=("time",)) == []

@@ -11,6 +11,22 @@ from puckling.dimensions.temperature.types import TemperatureUnit, TemperatureVa
 from puckling.predicates import is_numeral
 from puckling.types import Rule, Token, predicate, regex
 
+_WORD_BOUNDARY_R = r"(?![\p{L}\p{N}])"
+_NUMERIC_RE = (
+    r"(?<![\p{L}\p{N}+\-.,٫])"
+    r"-?(?:[٠-٩]+(?:[.٫][٠-٩]+)?|\d+(?:\.\d+)?)"
+    r"(?![\p{L}\p{N}.,٫])"
+)
+_DEGREE_RE = (
+    rf"(?:درج(?:[ةه]|ات)\s+مئوي[ةه]{_WORD_BOUNDARY_R}"
+    rf"|درج(?:[ةه]|ات)(?!\s*مئوي){_WORD_BOUNDARY_R}"
+    rf"|°(?!\s*°){_WORD_BOUNDARY_R})"
+)
+_CELSIUS_RE = rf"(?:درج(?:[ةه]|ات)\s+)?سي?لي?[سز]ي?وس{_WORD_BOUNDARY_R}"
+_CELSIUS_EXPLICIT_RE = rf"(?:درجة\s+مئوية|°\s*س){_WORD_BOUNDARY_R}"
+_FAHRENHEIT_RE = rf"(?:درج(?:[ةه]|ات)\s+)?ف(?:ا|ي)?هرنها?يت{_WORD_BOUNDARY_R}"
+_BELOW_ZERO_RE = rf"تحت\s+الصفر{_WORD_BOUNDARY_R}"
+
 
 def _is_temperature_with_value(t: Token) -> bool:
     if t.dim != "temperature":
@@ -54,7 +70,7 @@ def _prod_integer_numeral(tokens: tuple[Token, ...]) -> Token | None:
 
 _integer_numeral_rule = Rule(
     name="integer (numeric, AR)",
-    pattern=(regex(r"-?[٠-٩]+(?:[.٫][٠-٩]+)?|-?\d+(?:\.\d+)?"),),
+    pattern=(regex(_NUMERIC_RE),),
     prod=_prod_integer_numeral,
 )
 
@@ -64,7 +80,7 @@ _rule_temperature_degrees = Rule(
     name="<latent temp> degrees",
     pattern=(
         predicate(is_numeral, "is_numeral"),
-        regex(r"(?:درج(?:[ةه]|ات)(?:\s*مئوي[ةه])?)|°"),
+        regex(_DEGREE_RE),
     ),
     prod=_with_unit(TemperatureUnit.DEGREE),
 )
@@ -73,7 +89,7 @@ _rule_temperature_degrees = Rule(
 # درجتين / درجتان → 2 degrees.
 _rule_temperature_two_degrees = Rule(
     name="two degrees",
-    pattern=(regex(r"درجت(?:ين|ان)"),),
+    pattern=(regex(rf"درجت(?:ين|ان){_WORD_BOUNDARY_R}"),),
     prod=lambda _t: _temp(2, TemperatureUnit.DEGREE),
 )
 
@@ -83,7 +99,7 @@ _rule_temperature_celsius = Rule(
     name="<temp> Celsius",
     pattern=(
         predicate(_is_temperature_with_value, "is_temperature"),
-        regex(r"(?:درج(?:[ةه]|ات)\s+)?سي?لي?[سز]ي?وس"),
+        regex(_CELSIUS_RE),
     ),
     prod=_with_unit(TemperatureUnit.CELSIUS),
 )
@@ -94,7 +110,7 @@ _rule_numeral_celsius = Rule(
     name="<numeral> Celsius",
     pattern=(
         predicate(is_numeral, "is_numeral"),
-        regex(r"(?:درج(?:[ةه]|ات)\s+)?سي?لي?[سز]ي?وس"),
+        regex(_CELSIUS_RE),
     ),
     prod=_with_unit(TemperatureUnit.CELSIUS),
 )
@@ -108,7 +124,7 @@ _rule_numeral_celsius_explicit = Rule(
     name="<numeral> درجة مئوية",
     pattern=(
         predicate(is_numeral, "is_numeral"),
-        regex(r"درجة\s+مئوية|°\s*س\b"),
+        regex(_CELSIUS_EXPLICIT_RE),
     ),
     prod=_with_unit(TemperatureUnit.CELSIUS),
 )
@@ -119,7 +135,7 @@ _rule_temperature_fahrenheit = Rule(
     name="<temp> Fahrenheit",
     pattern=(
         predicate(_is_temperature_with_value, "is_temperature"),
-        regex(r"(?:درج(?:[ةه]|ات)\s+)?ف(?:ا|ي)?هرنها?يت"),
+        regex(_FAHRENHEIT_RE),
     ),
     prod=_with_unit(TemperatureUnit.FAHRENHEIT),
 )
@@ -129,7 +145,7 @@ _rule_numeral_fahrenheit = Rule(
     name="<numeral> Fahrenheit",
     pattern=(
         predicate(is_numeral, "is_numeral"),
-        regex(r"(?:درج(?:[ةه]|ات)\s+)?ف(?:ا|ي)?هرنها?يت"),
+        regex(_FAHRENHEIT_RE),
     ),
     prod=_with_unit(TemperatureUnit.FAHRENHEIT),
 )
@@ -147,7 +163,7 @@ _rule_below_zero_temp = Rule(
     name="<temp> below zero",
     pattern=(
         predicate(_is_temperature_with_value, "is_temperature"),
-        regex(r"تحت\s+الصفر"),
+        regex(_BELOW_ZERO_RE),
     ),
     prod=_prod_below_zero,
 )
@@ -163,7 +179,7 @@ _rule_below_zero_numeral = Rule(
     name="<numeral> below zero",
     pattern=(
         predicate(is_numeral, "is_numeral"),
-        regex(r"تحت\s+الصفر"),
+        regex(_BELOW_ZERO_RE),
     ),
     prod=_prod_below_zero_numeral,
 )
