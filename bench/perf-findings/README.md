@@ -1,6 +1,6 @@
 # Performance ceiling exploration — summary
 
-Autonomous follow-up to the bench-harness work on 2026-04-28. Three independent branches, each with its own `PERF_FINDINGS.md` and code, isolating one performance lever per branch. This document is the index.
+Autonomous follow-up to the bench-harness work on 2026-04-28. Three independent exploration branches isolating one performance lever each, plus a follow-up round on the winner. All branch code has since been consolidated into `main` and the branches retired; the per-phase findings live alongside this README. This document is the index.
 
 ## Starting state
 
@@ -13,9 +13,9 @@ After that fix, `en/multi/long` baseline = **27.97 ms**, mean across corpus = ~7
 
 ## The three branches
 
-### `perf/python-micro-opts` — VERDICT: SHIP
+### Phase 1 — `perf/python-micro-opts` — VERDICT: SHIPPED (v0.2.0)
 
-Five targeted Python optimizations (see `git show perf/python-micro-opts:PERF_FINDINGS.md` for the per-rank breakdown):
+Five targeted Python optimizations (see [`01-python-micro-opts.md`](01-python-micro-opts.md) for the per-rank breakdown):
 
 1. `@functools.cache` on `_registry.rules_for(lang, dims)` — ~10% on long, up to 70% on shorts.
 2. Token-by-start index, rebuilt once per saturation pass — O(1) predicate matching.
@@ -25,7 +25,17 @@ Five targeted Python optimizations (see `git show perf/python-micro-opts:PERF_FI
 
 Headline result on `en/multi/long`: **27.97 ms → 12.55 ms (−55%).** Mean improvement across the 28-cell corpus: 47–86%, every cell better. All 1,989 tests still pass.
 
-### `perf/sub-interpreters` — VERDICT: KILL
+### Round 2 — engine optimizations — VERDICT: SHIPPED (post-v0.2.0)
+
+Three further engine-level changes on top of Phase 1 (see [`02-round-2-engine-opts.md`](02-round-2-engine-opts.md)):
+
+1. **Text-only rule scheduling** — rules whose pattern is all-`RegexItem` run only on iteration 0 of saturation; they cannot observe new tokens, so subsequent passes only re-produce dedup-rejected work. Largest of the three wins.
+2. **Parse-local anchored-regex memo** — multi-item regex matchers cache `compiled.match(text, pos=...)` within one `parse_and_resolve` call, cutting anchored regex calls ~82%.
+3. **Exact-dimension predicate fast path** — predicates marked with an `__puckling_exact_dim__` attribute (e.g. `is_numeral`, `is_time`, `is_dim(x)`) specialize to a direct `tok.dim == dim` check.
+
+Headline result on `en/multi/long`: **12.55 ms → 6.70 ms (−47%)**, ~76% cumulative reduction from the original `main` baseline. All tests still pass.
+
+### Phase 2 — `perf/sub-interpreters` — VERDICT: KILLED
 
 Investigated PEP 734 sub-interpreters AND PEP 703 free-threaded Python.
 
@@ -34,7 +44,7 @@ Investigated PEP 734 sub-interpreters AND PEP 703 free-threaded Python.
 
 Both substrate paths fall short of phase-1's 55% gain.
 
-### `perf/rust-feasibility` — VERDICT: PARK
+### Phase 3 — `perf/rust-feasibility` — VERDICT: PARKED
 
 Researched a PyO3 port of `_apply_rule`/`_match_pattern_from`/`_match_item_at`, with realistic Amdahl based on profile data and a head-to-head regex microbench.
 
@@ -46,18 +56,20 @@ Best-case projection for `en/multi/long`: **12.55 ms → ~4.1 ms** (≈ 3× over
 
 Cost: ~6–8 person-weeks one-time + ongoing 2× engineering tax + 7-platform wheel matrix in CI vs current single pure-Python wheel. Not justified for ~8 ms/parse on one cell.
 
-## Recommendation
+## Outcome
 
-1. **Merge `perf/python-micro-opts` to main** as soon as possible. Zero distribution change, all tests pass, 47–86% latency cut across the bench corpus, every cell improved. After merge, `en/multi/long` = 12.55 ms; **27 of 28 cells under 5 ms**.
-2. **Park sub-interpreter and Rust paths.** Both branches stay around as documented dead-ends so we don't re-litigate.
-3. If the remaining slowest cell (`en/multi/long` at 12.55 ms) becomes a hard ceiling for the SLA, the next levers are *not* parallelism or Rust — they are: (a) caching repeat utterances at the NLU layer (banking traffic is famously repetitive — likely a >2× practical win on real traffic at near-zero engineering cost), or (b) splitting the `time` dimension internally (it's 242 of 290 EN rules and dominates long-input cost).
+1. **Phase 1 shipped** as v0.2.0 — `en/multi/long` 27.97 ms → 12.55 ms.
+2. **Round 2 shipped** post-v0.2.0 — `en/multi/long` 12.55 ms → 6.70 ms (~76% cumulative reduction from the original baseline).
+3. **Sub-interpreter and Rust paths parked** as documented dead-ends so we don't re-litigate.
+4. If `en/multi/long` (now 6.70 ms) becomes a hard ceiling for the SLA, the next levers are *not* parallelism or Rust — they are: (a) caching repeat utterances at the NLU layer (banking traffic is famously repetitive — likely a >2× practical win on real traffic at near-zero engineering cost), or (b) splitting the `time` dimension internally (it's 242 of 290 EN rules and dominates long-input cost).
 
 ## Where to read more
 
-| File | Where |
+| Doc | File |
 |---|---|
-| Phase 1 changes + findings | `git checkout perf/python-micro-opts`, then `PERF_FINDINGS.md` |
-| Phase 2 sub-interp + free-threaded findings | `git checkout perf/sub-interpreters`, then `PERF_FINDINGS.md` |
-| Phase 3 Rust feasibility report | `git checkout perf/rust-feasibility`, then `PERF_FINDINGS.md` |
-| Bench harness + corpus + JSON history | `bench/` on any branch (ships unchanged on `main`) |
+| Phase 1 — Python micro-opts (shipped) | [`01-python-micro-opts.md`](01-python-micro-opts.md) |
+| Round 2 — engine optimizations (shipped) | [`02-round-2-engine-opts.md`](02-round-2-engine-opts.md) |
+| Phase 2 — sub-interpreters + free-threaded Python (killed) | [`03-sub-interpreters-and-free-threading.md`](03-sub-interpreters-and-free-threading.md) |
+| Phase 3 — Rust extension feasibility (parked) | [`04-rust-feasibility.md`](04-rust-feasibility.md) |
+| Bench harness + corpus + JSON history | [`bench/`](..) |
 | Production NLU integration (the workload these numbers mirror) | `../nlu/pkgs/arena/arena/ml_models/puckling_entity_extractor_model.py` |

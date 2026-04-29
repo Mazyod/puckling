@@ -1,6 +1,6 @@
 # Phase 1 — Python micro-optimizations
 
-Branch: `perf/python-micro-opts`. Baseline: `bench/results/baseline-micro-opts.json` (post-deadline-fix `main`).
+Originally explored on the `perf/python-micro-opts` branch (since retired). Shipped to `main` and released as v0.2.0. Baseline: `bench/results/baseline-micro-opts.json` (post-deadline-fix `main`).
 
 ## Headline
 
