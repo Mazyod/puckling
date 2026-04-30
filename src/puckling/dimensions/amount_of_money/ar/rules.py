@@ -78,6 +78,7 @@ _prod_mad = _make_amount_prod("MAD")
 _prod_usd = _make_amount_prod("USD")
 _prod_eur = _make_amount_prod("EUR")
 _prod_ils = _make_amount_prod("ILS")
+_prod_fils = _make_amount_prod("fils")
 _prod_dinar = _make_amount_prod("Dinar")
 _prod_dirham = _make_amount_prod("Dirham")
 _prod_riyal = _make_amount_prod("Riyal")
@@ -190,6 +191,13 @@ RULES: tuple[Rule, ...] = (
         # TODO(puckling): edge case — also accepts شواقل/شيقل with q/k variants.
         pattern=(_NUM, regex(_word_currency(r"شي?[كق]ل|شوا[كق]ل"))),
         prod=_prod_ils,
+    ),
+    Rule(
+        name="<n> فلس → fils",
+        # Local Gulf/Kuwait minor-unit extension. Upstream Duckling does not
+        # currently emit amount-of-money for "فلس" in Arabic.
+        pattern=(_NUM, regex(_word_currency(r"فلس"))),
+        prod=_prod_fils,
     ),
     # ---- ISO codes (collapsed: regex captures the code, prod resolves it). ----
     Rule(

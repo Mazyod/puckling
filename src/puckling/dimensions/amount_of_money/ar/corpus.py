@@ -39,6 +39,12 @@ CORPUS: tuple[Example, ...] = (
         {"value": 42, "unit": "KWD", "type": "value"},
         ["42 KWD", "42 دينار كويتي", "٤٢ دينار كويتي"],
     ),
+    # Puckling extension: upstream Duckling returns no amount-of-money entity
+    # for "0.750 فلس" when checked with rasa/duckling Docker (ar_KW).
+    examples(
+        {"value": 0.75, "unit": "fils", "type": "value"},
+        ["0.750 فلس"],
+    ),
     examples(
         {"value": 50, "unit": "Dinar", "type": "value"},
         ["٥٠ دينار", "50 دينار"],

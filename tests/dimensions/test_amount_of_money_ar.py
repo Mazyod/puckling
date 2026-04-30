@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from puckling import Options, parse
+from puckling import Context, Locale, Options, parse
 from puckling.corpus import pytest_examples
 from puckling.dimensions.amount_of_money.ar.corpus import CORPUS
+from puckling.locale import Lang, Region
 from tests.value_helpers import value_matches
 
 NEGATIVE_CASES: tuple[str, ...] = (
@@ -35,6 +36,16 @@ def test_corpus(phrase, expected, ctx_ar):
     assert any(value_matches(e.value, expected) for e in entities), (
         f"phrase={phrase!r} expected={expected!r} got={[e.value for e in entities]!r}"
     )
+
+
+def test_fils_decimal_parses_for_kuwait_locale(reference_time):
+    ctx_kw = Context(reference_time=reference_time, locale=Locale(Lang.AR, Region.KW))
+    entities = parse("0.750 فلس", ctx_kw, Options(), dims=("amount_of_money",))
+    assert any(
+        e.body == "0.750 فلس"
+        and value_matches(e.value, {"value": 0.75, "unit": "fils", "type": "value"})
+        for e in entities
+    ), f"expected Kuwaiti fils amount; got {[(e.body, e.value) for e in entities]!r}"
 
 
 @pytest.mark.parametrize("phrase", NEGATIVE_CASES)
