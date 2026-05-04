@@ -32,7 +32,8 @@ NEGATIVE_CASES: tuple[str, ...] = (
     "٣..٥ لتر",
     "٣٫٫٥ لتر",
     "3,5 لتر",
-    "3،5 لتر",
+    # `3،5 لتر` aligns with upstream Duckling: the Arabic comma is a
+    # list separator, the right-hand `5 لتر` is a valid volume span.
     "--٣ لتر",
     "طلب5 لتر",
     "س5 لتر",

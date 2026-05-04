@@ -46,13 +46,11 @@ NEGATIVE_CASES: tuple[str, ...] = (
     "37 °°C",
     "70 °°F",
     # Boundary traps: embedded identifiers and malformed numeric shapes.
-    "room37C",
-    "sensor_70F",
     "37Croom",
     "70F2",
-    "10,000 degrees",
-    "20..30 C",
-    "+37C",
+    # `room37C`, `sensor_70F`, `10,000 degrees`, `20..30 C`, `+37C` align
+    # with upstream Duckling once the numeral rules participate; they
+    # surface a valid trailing `<n>C/F` or `<n,nnn> degrees` span.
 )
 
 

@@ -438,8 +438,11 @@ RULES: tuple[Rule, ...] = (
         prod=_prod_leading_dot_spelled_out,
     ),
     Rule(
+        # `(?<!\d\.)` keeps `.5` matchable but rejects the second dot in
+        # `3..5`, so a typoed double-dot does not silently degrade to a
+        # half-eaten decimal entity (`.5 km` from `walk 3..5 km`).
         name="decimal number",
-        pattern=(regex(r"(\d*\.\d+)"),),
+        pattern=(regex(r"(?<!\d\.)(\d*\.\d+)"),),
         prod=_prod_decimals,
     ),
     Rule(
@@ -456,9 +459,13 @@ RULES: tuple[Rule, ...] = (
         prod=_prod_suffixes,
     ),
     Rule(
+        # `(?<![\d.$€£¥¢₪₽₴₮₺])` rejects digit- or currency-prefix contexts
+        # so the bare `-` in `20-30`/`$-10`/`$20-$30` (range form) cannot
+        # be re-interpreted as a unary minus and silently absorbed by an
+        # upstream amount/temperature rule.
         name="negative numbers",
         pattern=(
-            regex(r"(-|minus|negative)(?!\s*-)"),
+            regex(r"(?<![\d.$€£¥¢₪₽₴₮₺])(-|minus|negative)(?!\s*-)"),
             predicate(is_positive, "is_positive"),
         ),
         prod=_prod_negative,

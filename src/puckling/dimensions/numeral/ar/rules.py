@@ -22,7 +22,10 @@ from puckling.types import Rule, Token, predicate, regex
 
 _WORD_BOUNDARY_LEFT = r"(?:(?<![\p{L}\p{N}_])|(?<=و))"
 _WORD_BOUNDARY_RIGHT = r"(?![\p{L}\p{N}_])"
-_NUMERIC_BOUNDARY_LEFT = r"(?<![\p{L}\p{N}_.,٫٬/+−])(?<!--)"
+# `,` is a thousands separator only when sandwiched between digits
+# (`1,234`); after a non-digit it is just a list/sentence separator
+# (`رابع,20`) and must not block a fresh numeric token.
+_NUMERIC_BOUNDARY_LEFT = r"(?<![\p{L}\p{N}_.٫٬/+−])(?<!--)(?<!\d,)"
 _NUMERIC_BOUNDARY_RIGHT = r"(?![\p{L}\p{N}_.,٫٬/+−-])"
 
 
@@ -473,9 +476,12 @@ _rule_multiply = Rule(
 )
 
 _rule_numerals_prefix_minus = Rule(
+    # `(?<![\d.$€£¥¢-])` rejects digit-, dot-, currency-prefix, and
+    # consecutive-hyphen contexts so the unary minus rule does not eat
+    # the right operand of a range hyphen (`$-10`, `20-30`).
     name="numbers prefix with -, minus",
     pattern=(
-        regex(r"(?<!-)-(?!\s*-)"),
+        regex(r"(?<![\d.$€£¥¢-])-(?!\s*-)"),
         predicate(is_numeral, "is_numeral"),
     ),
     prod=_prod_numerals_prefix_minus,

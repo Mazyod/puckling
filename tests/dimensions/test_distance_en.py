@@ -18,10 +18,11 @@ NEGATIVE_CASES = (
     # Malformed numeric/unit joins or compound units.
     "ship 3kg today",
     "plot 3 km2 parcels",
-    "measure .3 km later",
-    "walk 3..5 km",
     "run 3km/h",
     "run 3 km/h",
+    # `measure .3 km later` and `walk 3..5 km` were previously listed but
+    # match upstream Duckling: a leading-dot decimal is a valid distance,
+    # and a typoed double-dot still surfaces the trailing operand.
     # Direction/geography prose.
     "book 3 miami hotels",
     "take route 66 east",

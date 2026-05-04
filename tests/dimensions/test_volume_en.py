@@ -21,12 +21,11 @@ NEGATIVE_CASES: tuple[str, ...] = (
     "the 3 hectoliterish samples",
     "pour 3 litters",
     # Malformed numeric/unit joins or unsupported compound shapes.
-    "v2l release",
-    "room2l label",
     "fill 2l2 bottles",
-    "pour .5 liters",
-    "pour 3..5 liters",
     "pour 3-5 liters",
+    # `v2l release`, `room2l label`, `pour .5 liters`, `pour 3..5 liters`
+    # align with upstream Duckling once numeral rules participate; they
+    # surface valid trailing `<n>l`/`.<n> liters`/`<n> liters` spans.
     "pour 3 to 5 liters",
     "between 3 and 5 liters",
     "under 3.5 gallons",

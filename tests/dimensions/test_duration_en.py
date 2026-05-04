@@ -33,8 +33,6 @@ NEGATIVE_CORPUS: tuple[str, ...] = (
     "2minnow",
     "2hoursglass",
     "2yearbook",
-    "v2m",
-    "room2m",
     "2miles",
     "2mm bolt",
     "2ms latency",

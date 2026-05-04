@@ -54,7 +54,7 @@ from puckling.dimensions.time.types import (
     IntervalDirection,
     IntervalValue,
 )
-from puckling.predicates import is_numeral, is_ordinal, is_time
+from puckling.predicates import is_natural, is_numeral, is_ordinal, is_time
 from puckling.types import RegexMatch, Rule, Token, predicate, regex
 
 # ---------------------------------------------------------------------------
@@ -1061,7 +1061,9 @@ _HOUR_WORDS = (
     "one", "two", "three", "four", "five", "six",
     "seven", "eight", "nine", "ten", "eleven", "twelve",
 )
-_HOUR_WORD_PATTERN = "|".join(_HOUR_WORDS)
+# `\b` on both sides so the single-regex `<word-H>` rule's `finditer` walk
+# does not match `four` inside `fourth`, `seven` inside `seventeen`, etc.
+_HOUR_WORD_PATTERN = r"\b(?:" + "|".join(_HOUR_WORDS) + r")\b"
 
 
 def _word_hour_am_pm_prod(tokens: tuple[Token, ...]) -> Token | None:
@@ -1525,10 +1527,15 @@ def _finest_grain(g: Grain) -> Grain:
 
 
 _in_n_grain_rule = Rule(
+    # `is_natural` (non-negative whole) instead of `is_numeral` so a
+    # negative numeral produced by the prefix-minus rule (e.g. `-3` in
+    # `in -3 days`) cannot stand in for the count. Duckling rejects this
+    # phrase outright; without the tightening, the relative-time rule
+    # silently composes a malformed `in -3 days` time entity.
     name="in <n> <grain>",
     pattern=(
         regex(r"in"),
-        predicate(is_numeral, "is_n"),
+        predicate(is_natural, "is_n"),
         regex(r"seconds?|minutes?|hours?|days?|weeks?|months?|years?"),
     ),
     prod=_in_n_grain_prod,

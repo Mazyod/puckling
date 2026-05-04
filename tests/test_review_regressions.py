@@ -14,6 +14,15 @@ Each test here would fail against the pre-fix code:
 3. `is_positive` predicate — used `> 0`, diverging from upstream Duckling's
    `isPositive` (`>= 0`). Made `-0` (and `negative 0` / `minus 0`) reject
    under the negative-numbers rule, leaving a wrong parse.
+4. Dim filter dropped cross-dim deps — registry filtered rules at load time,
+   so requesting `dims=("amount_of_money", "time")` excluded numeral rules
+   that money's `<currency> <amount>` rule transitively needs to recognise
+   fractions/decimals. `$1/2`, `$10/1`, AR `20.43 $`-in-compound silently
+   downgraded to a time match. Fix: registry expands `dims` to its
+   dependency closure before loading rules.
+5. Hour-word regex (`one|two|...|twelve`) lacked word boundaries, so the
+   single-regex `<word-H>` rule fired on the `four` prefix of `fourth`,
+   composing a spurious time span.
 """
 
 from __future__ import annotations
@@ -205,4 +214,64 @@ def test_negation_of_zero_covers_full_span(ctx_en, phrase):
     numerals = [e for e in out if e.dim == "numeral"]
     assert any(e.body == phrase for e in numerals), (
         f"expected one numeral covering `{phrase}`; got {numerals!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Fix 4 — Registry expands `dims` to its dependency closure before loading rules.
+
+
+@pytest.mark.parametrize(
+    "text, expected_body",
+    [
+        ("$1/2", "$1/2"),
+        ("$10/1", "$10/1"),
+        ("$ 10/1", "$ 10/1"),
+    ],
+)
+def test_money_with_fractional_amount_under_dim_filter(ctx_en, text, expected_body):
+    """`$1/2`-style amounts must surface as money when caller filters to
+    `("amount_of_money", "time")`. Pre-fix, the registry stripped the
+    `numeral` rules out at load time, so the `fractional number` rule never
+    fired, the money `<currency> <amount>` chain bottomed out at `$1`, and
+    the `mm/dd` time rule absorbed the leftover `1/2`.
+    """
+    result = parse(text, ctx_en, Options(), dims=("amount_of_money", "time"))
+    money_bodies = {e.body for e in result if e.dim == "amount_of_money"}
+    assert expected_body in money_bodies, (
+        f"expected money body {expected_body!r}; got {[(e.dim, e.body) for e in result]!r}"
+    )
+
+
+def test_ar_postfix_dollar_in_compound_under_dim_filter(ctx_ar):
+    """`20.43 $` after a non-money token must still parse as money under
+    `dims=("amount_of_money", "time")`. Pre-fix, the AR numeral rule for
+    decimals (`integer (numeric, ar/en digits)`) was stripped from the rule
+    set, so `20.43` was only seen by the `hh:mm` time rule and money was
+    suppressed.
+    """
+    text = "رابع,20.43 $"
+    result = parse(text, ctx_ar, Options(), dims=("amount_of_money", "time"))
+    money_bodies = {e.body for e in result if e.dim == "amount_of_money"}
+    assert "20.43 $" in money_bodies, (
+        f"expected money '20.43 $'; got {[(e.dim, e.body) for e in result]!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Fix 5 — `<word-H>` hour-word pattern anchors at word boundaries.
+
+
+def test_hour_word_does_not_match_inside_ordinal(ctx_en):
+    """`yesterday fourth` must not produce a time span that eats `four` from
+    `fourth`. Pre-fix, the `<word-H> (latent hour)` regex
+    `one|two|...|twelve` lacked `\\b` anchors, so the engine's single-regex
+    `finditer` path matched `four` inside `fourth`, the `<time> <tod>`
+    combinator chained it onto `yesterday`, and the resulting spurious
+    `yesterday four` token outranked plain `yesterday`.
+    """
+    result = parse("yesterday fourth", ctx_en, Options(), dims=("time", "ordinal"))
+    time_bodies = {e.body for e in result if e.dim == "time"}
+    assert "yesterday four" not in time_bodies, (
+        f"time leaked into 'fourth': {[(e.dim, e.body) for e in result]!r}"
     )

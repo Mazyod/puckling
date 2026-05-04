@@ -23,6 +23,20 @@ from functools import cache, lru_cache
 from puckling.locale import Lang
 from puckling.types import Rule
 
+# Cross-dimension rule dependencies. A dim's `<currency> <amount>`-style
+# composition rules consume tokens produced by these other dims, so requesting
+# only the surface dim and not its deps would silently drop legitimate
+# matches (e.g. `$1/2` needs the numeral `fractional number` rule).
+_DIM_DEPS: dict[str, tuple[str, ...]] = {
+    "amount_of_money": ("numeral",),
+    "distance": ("numeral",),
+    "duration": ("numeral",),
+    "quantity": ("numeral",),
+    "temperature": ("numeral",),
+    "time": ("numeral", "ordinal"),
+    "volume": ("numeral",),
+}
+
 
 @cache
 def known_dimensions() -> tuple[str, ...]:
@@ -30,6 +44,19 @@ def known_dimensions() -> tuple[str, ...]:
 
     names = [info.name for info in pkgutil.iter_modules(dims_pkg.__path__) if info.ispkg]
     return tuple(sorted(names))
+
+
+def _expand_with_deps(dims: tuple[str, ...]) -> tuple[str, ...]:
+    """Return `dims` plus the transitive closure of `_DIM_DEPS`."""
+    seen = set(dims)
+    queue = list(dims)
+    while queue:
+        d = queue.pop()
+        for dep in _DIM_DEPS.get(d, ()):
+            if dep not in seen:
+                seen.add(dep)
+                queue.append(dep)
+    return tuple(sorted(seen))
 
 
 def _is_rules_module(name: str) -> bool:
@@ -67,7 +94,7 @@ def rules_for(lang: Lang, dims: tuple[str, ...] | None) -> tuple[Rule, ...]:
     depth — cardinality is `|Lang| × subsets-of-dims`, so `64` is generous.
     """
     rules: list[Rule] = []
-    targets = dims if dims is not None else known_dimensions()
+    targets = _expand_with_deps(dims) if dims is not None else known_dimensions()
     lang_seg = lang.value.lower()
     for dim in targets:
         # Locale-specific submodules under <dim>/<lang>/

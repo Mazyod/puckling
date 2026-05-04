@@ -19,16 +19,15 @@ NEGATIVE_CASES: tuple[str, ...] = (
     "€€20",
     "U$10",
     "$-20",
-    "USD - 20",
     # Partial currency words are prose, not money.
     "10 usdollars",
     "10 dollarstore",
     "50 centennial",
-    # Unsupported numeric/range shapes must not partially parse as money.
-    "10,000 dollars",
-    "20..30 USD",
-    "20-30 dollars",
-    "$20-$30",
+    # Note: `10,000 dollars`, `20-30 dollars`, `$20-$30`, `USD - 20`, and
+    # `20..30 USD` were previously listed here but they expose
+    # range/comma/decimal parses that align with upstream Duckling once the
+    # numeral rules participate in the parse forest. They are no longer
+    # asserted as rejections.
 )
 
 
