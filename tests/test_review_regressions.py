@@ -390,6 +390,39 @@ def test_ar_money_does_not_cross_newline(ctx_ar, text, allowed_bodies):
         )
 
 
+@pytest.mark.parametrize(
+    "text, expected_value, expected_currency, expected_body",
+    [
+        # `و` separated by space, two-digit cents.
+        ("1 دولار و 25", 1.25, "USD", "1 دولار و 25"),
+        # `و` with no space (proclitic attachment), short tail.
+        ("1 دولار و4", 1.04, "USD", "1 دولار و4"),
+        # No space, two-digit cents.
+        ("20 اورو و20", 20.2, "EUR", "20 اورو و20"),
+        # Space variant for EUR.
+        ("20 يورو و 20", 20.2, "EUR", "20 يورو و 20"),
+        # Three-digit tail — Duckling still divides by 100, yielding > base.
+        ("$1 و 250", 3.5, "USD", "$1 و 250"),
+        # Comma-terminated — span must cut at `،` and not absorb the
+        # following Arabic word.
+        ("1 دولار و4،ساعة", 1.04, "USD", "1 دولار و4"),
+    ],
+)
+def test_ar_money_intersect_with_waw_conjunction(
+    ctx_ar, text, expected_value, expected_currency, expected_body
+):
+    """`<amount> و <number>` must compose like Duckling's intersect-with-cents:
+    the trailing bare number is treated as cents (n/100 added). Mirrors EN
+    `intersect (and number)` (`$20 and 43` → 20.43). Without this rule,
+    `1 دولار و4` truncates to `1 دولار` and the `و4` tail is dropped.
+    """
+    result = parse(text, ctx_ar, Options(), dims=("amount_of_money",))
+    bodies = [(e.body, getattr(e.value, "value", None), getattr(e.value, "currency", None)) for e in result]
+    assert (expected_body, expected_value, expected_currency) in bodies, (
+        f"expected {(expected_body, expected_value, expected_currency)!r} in {bodies!r}"
+    )
+
+
 def test_hour_word_does_not_match_inside_ordinal(ctx_en):
     """`yesterday fourth` must not produce a time span that eats `four` from
     `fourth`. Pre-fix, the `<word-H> (latent hour)` regex

@@ -11,7 +11,7 @@ dimension's responsibility.
 
 from __future__ import annotations
 
-from puckling.dimensions.amount_of_money.types import money
+from puckling.dimensions.amount_of_money.types import AmountOfMoneyValue, money
 from puckling.dimensions.numeral.helpers import parse_arabic_decimal
 from puckling.dimensions.numeral.types import NumeralValue
 from puckling.predicates import is_numeral, is_positive
@@ -87,6 +87,50 @@ _prod_pound = _make_amount_prod("Pound")
 
 _NUM = predicate(is_positive, "is_positive")
 _ANY_NUM = predicate(is_numeral, "is_numeral")
+
+
+def _is_without_cents(t: Token) -> bool:
+    """Whole-number money token eligible to absorb a `و <number>` cents tail.
+
+    Mirrors EN `_is_without_cents`: must be an `amount_of_money` with a
+    currency, an integer value, and no fractional part already attached.
+    """
+    if t.dim != "amount_of_money" or not isinstance(t.value, AmountOfMoneyValue):
+        return False
+    if t.value.currency is None:
+        return False
+    v = t.value.value
+    return isinstance(v, (int, float)) and float(v).is_integer()
+
+
+def _prod_intersect_waw(tokens: tuple[Token, ...]) -> Token | None:
+    """`<amount> و<digits>` (and space variant) → amount + digits/100.
+
+    Treats the trailing bare numeral as cents, matching Duckling AR's
+    `<amount> و <number>` intersect (analogous to EN `$20 and 43` → $20.43).
+
+    Implemented as a 2-item pattern with the `و` and digits captured in a
+    single regex (rather than three items with a predicate numeral) because
+    the AR numeral seed regex rejects digits preceded by an Arabic letter,
+    so `و4` (proclitic, no space) wouldn't tokenise into a separate numeral
+    for a 3-item pattern to consume. The capture group exposes the digits
+    so we don't need a downstream numeral token.
+    """
+    money_tok = tokens[0]
+    digits = tokens[1].value.groups[0]
+    if digits is None:
+        return None
+    base = money_tok.value.value
+    if base is None:
+        return None
+    cents = parse_arabic_decimal(digits)
+    return Token(
+        dim="amount_of_money",
+        value=money(
+            value=float(base) + float(cents) / 100.0,
+            currency=money_tok.value.currency,
+        ),
+    )
 
 
 _ISO_CODES: tuple[str, ...] = ("KWD", "SAR", "AED", "QAR", "JOD", "EGP", "LBP", "USD")
@@ -229,5 +273,24 @@ RULES: tuple[Rule, ...] = (
         name="<n> $ → USD",
         pattern=(_ANY_NUM, regex(r"\$")),
         prod=_make_amount_prod("USD"),
+    ),
+    # `<amount> و<number>` (with or without intervening space) — the bare
+    # number after the conjunction is added as cents (n/100). Mirrors
+    # Duckling AR's intersect-with-waw rule, the AR analogue of EN
+    # `intersect (and number)` (`$20 and 43` → $20.43). Captures `و` and
+    # the digits in one regex so the proclitic form `و4` works even when
+    # the numeral seed declines to fire after a letter.
+    Rule(
+        name="<amount> و<number> (intersect)",
+        pattern=(
+            predicate(_is_without_cents, "is_without_cents"),
+            regex(
+                r"(?<![\p{L}\p{N}])"
+                r"و[^\S\r\n]*"
+                r"([٠-٩]+(?:٫[٠-٩]+)?|\d+(?:\.\d+)?)"
+                r"(?![\p{L}\p{N}])"
+            ),
+        ),
+        prod=_prod_intersect_waw,
     ),
 )
