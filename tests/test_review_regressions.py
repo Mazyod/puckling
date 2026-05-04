@@ -358,6 +358,38 @@ def test_ar_duration_with_definite_article_prefix(ctx_ar):
     )
 
 
+@pytest.mark.parametrize(
+    "text, allowed_bodies",
+    [
+        # AR `<n> $ → USD` previously skipped through `\n` between number
+        # and `$`, producing a bogus `1\n$` span. Duckling treats `\n`
+        # as a hard token boundary.
+        ("1\n$", ()),
+        ("$\n1", ()),
+        # Compound input from production fuzz set: `1،$1\n$1` should
+        # produce two `$1` tokens (or none), never `1\n$`.
+        ("1،$1\n$1", ("$1",)),
+        # AR currency word across newline must not bind.
+        ("1\nدولار", ()),
+    ],
+)
+def test_ar_money_does_not_cross_newline(ctx_ar, text, allowed_bodies):
+    """Engine `_skip_whitespace` previously skipped `\\n` between pattern
+    items, letting `<n> $`/`$ <n>`/`<n> <currency-word>` rules join tokens
+    across linebreaks. Duckling treats `\\n` as a hard separator (it skips
+    `\\t` but not `\\n`). This guards the engine fix.
+    """
+    result = parse(text, ctx_ar, Options(), dims=("amount_of_money",))
+    bodies = [e.body for e in result]
+    for body in bodies:
+        assert "\n" not in body, (
+            f"money span crossed newline: {bodies!r} for {text!r}"
+        )
+        assert body in allowed_bodies or not allowed_bodies, (
+            f"unexpected body {body!r} for {text!r}; allowed: {allowed_bodies!r}"
+        )
+
+
 def test_hour_word_does_not_match_inside_ordinal(ctx_en):
     """`yesterday fourth` must not produce a time span that eats `four` from
     `fourth`. Pre-fix, the `<word-H> (latent hour)` regex

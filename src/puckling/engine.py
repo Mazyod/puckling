@@ -83,9 +83,18 @@ class _ParseBudgetExceeded(Exception):
 
 
 def _skip_whitespace(text: str, pos: int) -> int:
-    """Advance `pos` past ASCII or Unicode whitespace."""
+    """Advance `pos` past ASCII or Unicode whitespace, but stop at line breaks.
+
+    Duckling's tokenizer treats `\\n`/`\\r` as hard token boundaries: rule
+    patterns may skip `\\t` and other intra-line whitespace between matched
+    items, but not a linebreak. Mirroring that here prevents bogus spans
+    such as `1\\n$` from forming under `<n> $ → USD`.
+    """
     n = len(text)
-    while pos < n and text[pos].isspace():
+    while pos < n:
+        ch = text[pos]
+        if ch == "\n" or ch == "\r" or not ch.isspace():
+            break
         pos += 1
     return pos
 
