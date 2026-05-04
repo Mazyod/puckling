@@ -24,7 +24,9 @@ from puckling.types import RegexMatch, Rule, Token, predicate, regex
 # ---------------------------------------------------------------------------
 # Token helpers
 
-_WORD_BOUNDARY_LEFT = r"(?:(?<![\p{L}\p{N}_])|(?<=و))"
+# Mirrors `time/ar/rules.py`: Arabic single-letter proclitics (و, ل, ب,
+# ف, ك) attach without a separator and behave as word boundaries here.
+_WORD_BOUNDARY_LEFT = r"(?:(?<![\p{L}\p{N}_])|(?<=[ولبفك]))"
 _WORD_BOUNDARY_RIGHT = r"(?![\p{L}\p{N}_])"
 _NUMERIC_BOUNDARY_LEFT = r"(?<![\p{L}\p{N}_])"
 _NUMERIC_BOUNDARY_RIGHT = r"(?![\p{L}\p{N}_])"

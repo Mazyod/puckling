@@ -262,6 +262,102 @@ def test_ar_postfix_dollar_in_compound_under_dim_filter(ctx_ar):
 # Fix 5 — `<word-H>` hour-word pattern anchors at word boundaries.
 
 
+def test_money_intersect_absorbs_fractional_date_suffix(ctx_en):
+    """`KWD 3 2026/02/02` must surface as one money span covering
+    `KWD 3 2026/02` (matching upstream Duckling). Pre-fix, the intersect
+    rule's `is_natural` predicate rejected the fractional numeral
+    `2026/02` (=1013.0, a float), so money stopped at `KWD 3 2026` and
+    the leftover `02/02` re-fired as a spurious `mm/dd` time span.
+    The fix uses an `is_positive AND not has_grain` predicate so the
+    fractional cents-cast is admitted.
+    """
+    result = parse(
+        "KWD 3 2026/02/02", ctx_en, Options(), dims=("amount_of_money", "time")
+    )
+    bodies = {(e.dim, e.body) for e in result}
+    assert ("amount_of_money", "KWD 3 2026/02") in bodies, (
+        f"expected money 'KWD 3 2026/02'; got {sorted(bodies)!r}"
+    )
+    time_bodies = {b for d, b in bodies if d == "time"}
+    assert "02/02" not in time_bodies, (
+        f"spurious mm/dd time span surfaced: {sorted(bodies)!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Production-data parity (AR). Each row is a real input that returned `[]`
+# before the fix and a non-empty entity in upstream Duckling.
+
+
+def test_ar_phone_with_masked_card_suffix(ctx_ar):
+    """`078654xxxxxx3001` (masked-card pipeline output) must surface a
+    phone span on the leading 6 digits. Pre-fix, the phone right boundary
+    rejected a trailing letter, so duck's `phone-number 078654` had no
+    counterpart.
+    """
+    text = "حولي الي بطاقه 078654xxxxxx3001"
+    result = parse(text, ctx_ar, Options(), dims=("phone_number",))
+    bodies = {(e.dim, e.body) for e in result}
+    assert ("phone_number", "078654") in bodies, (
+        f"expected phone '078654'; got {sorted(bodies)!r}"
+    )
+
+
+def test_ar_money_iso_prefix(ctx_ar):
+    """`aed 2,420.00` (bank-ledger format, ISO code on the left) must
+    surface as a money span. Pre-fix, AR money only had `<n> <ISO>`; the
+    ISO-prefix form was unmatched.
+    """
+    text = "حولي الي دينار الكويتي جم aed 2,420.00"
+    result = parse(text, ctx_ar, Options(), dims=("amount_of_money",))
+    bodies = {(e.dim, e.body) for e in result}
+    assert ("amount_of_money", "aed 2,420.00") in bodies, (
+        f"expected money 'aed 2,420.00'; got {sorted(bodies)!r}"
+    )
+
+
+def test_ar_weekday_with_proclitic_prefix(ctx_ar):
+    """`حولي لاحد` ('transfer to/for Sunday') must surface a time span on
+    `احد`. Pre-fix, the weekday rule's left boundary rejected the
+    proclitic `ل` prefix; only `و` was treated as separable.
+    """
+    text = "حولي لاحد"
+    result = parse(text, ctx_ar, Options(), dims=("time",))
+    bodies = {(e.dim, e.body) for e in result}
+    assert ("time", "احد") in bodies, (
+        f"expected time 'احد'; got {sorted(bodies)!r}"
+    )
+
+
+def test_ar_part_of_day_surfaces_without_with_latent(ctx_ar):
+    """`سلام عليكم مساء الخير` must surface a `time` entity for `مساء`
+    even with default `Options()`. Pre-fix, AR `PartOfDayInterval` was
+    `latent=True`, so callers had to opt in via `with_latent=True`;
+    upstream Duckling has no latent concept and surfaces the entity by
+    default in production data.
+    """
+    text = "سلام عليكم مساء الخير"
+    result = parse(text, ctx_ar, Options(), dims=("time",))
+    bodies = {(e.dim, e.body) for e in result}
+    assert ("time", "مساء") in bodies, (
+        f"expected time 'مساء'; got {sorted(bodies)!r}"
+    )
+
+
+def test_ar_duration_with_definite_article_prefix(ctx_ar):
+    """`مسابقه تحدي الدقيقه` must surface a duration on `دقيقه`. Pre-fix,
+    the duration rule's left boundary rejected the `ل` of the definite
+    article `ال`, so `الدقيقه`/`الساعة`/`اليوم` couldn't extract their
+    grain word as a one-unit duration.
+    """
+    text = "مسابقه تحدي الدقيقه"
+    result = parse(text, ctx_ar, Options(), dims=("duration",))
+    bodies = {(e.dim, e.body) for e in result}
+    assert ("duration", "دقيقه") in bodies, (
+        f"expected duration 'دقيقه'; got {sorted(bodies)!r}"
+    )
+
+
 def test_hour_word_does_not_match_inside_ordinal(ctx_en):
     """`yesterday fourth` must not produce a time span that eats `four` from
     `fourth`. Pre-fix, the `<word-H> (latent hour)` regex

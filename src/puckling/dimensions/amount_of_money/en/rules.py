@@ -18,7 +18,7 @@ from dataclasses import dataclass
 
 from puckling.dimensions.amount_of_money.types import AmountOfMoneyValue, money
 from puckling.dimensions.numeral.types import NumeralValue
-from puckling.predicates import is_natural, is_numeral
+from puckling.predicates import is_natural, is_numeral, is_positive
 from puckling.types import Rule, Token, predicate, regex
 
 # ---------------------------------------------------------------------------
@@ -169,6 +169,20 @@ def _is_without_cents(t: Token) -> bool:
     return isinstance(v, (int, float)) and float(v).is_integer()
 
 
+def _is_positive_no_grain(t: Token) -> bool:
+    """Mirror Duckling `isPositive && not . hasGrain`: any non-negative
+    numeral that is not a magnitude word (hundred/thousand/million).
+    Used as the cents operand in `<amount> <number>` intersects so that
+    fractional/decimal numerals like `2026/02` (`KWD 3 2026/02/02` → one
+    money span) participate, while grained multipliers do not absorb as
+    cents.
+    """
+    if not is_positive(t):
+        return False
+    grain = getattr(t.value, "grain", None)
+    return grain is None
+
+
 def _is_cent_money(t: Token) -> bool:
     return (
         t.dim == "amount_of_money"
@@ -313,7 +327,7 @@ RULES: tuple[Rule, ...] = (
         name="intersect",
         pattern=(
             predicate(_is_without_cents, "is_without_cents"),
-            predicate(is_natural, "is_natural"),
+            predicate(_is_positive_no_grain, "is_positive_no_grain"),
         ),
         prod=_intersect_at(1),
     ),
@@ -323,7 +337,7 @@ RULES: tuple[Rule, ...] = (
         pattern=(
             predicate(_is_without_cents, "is_without_cents"),
             regex(r"and"),
-            predicate(is_natural, "is_natural"),
+            predicate(_is_positive_no_grain, "is_positive_no_grain"),
         ),
         prod=_intersect_at(2),
     ),

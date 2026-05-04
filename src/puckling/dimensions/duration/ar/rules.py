@@ -19,8 +19,12 @@ from puckling.types import RegexMatch, Rule, Token, predicate, regex
 # Boundary helpers.
 
 # Plain `\b` is unreliable for Arabic in `regex`; explicitly require that
-# unit words do not sit inside a larger letter/digit token.
-_WORD_BOUNDARY_LEFT = r"(?:(?<![\p{L}\p{N}_])|(?<=و))"
+# unit words do not sit inside a larger letter/digit token. Single-letter
+# proclitics (و, ل, ب, ف, ك) attach without a separator and behave as a
+# fresh word boundary; the definite article `ال` is also covered because
+# its second letter `ل` is the char immediately before the duration head
+# (e.g. `الدقيقه` → duration `دقيقه`).
+_WORD_BOUNDARY_LEFT = r"(?:(?<![\p{L}\p{N}_])|(?<=[ولبفك]))"
 _WORD_BOUNDARY_RIGHT = r"(?![\p{L}\p{N}_])"
 _NUMERIC_BOUNDARY_LEFT = r"(?<![\p{L}\p{N}_.,٫٬/+−])(?<!--)"
 _NUMERIC_BOUNDARY_RIGHT = r"(?![\p{L}\p{N}_.,٫٬/+−-])"

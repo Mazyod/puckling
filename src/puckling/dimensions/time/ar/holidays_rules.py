@@ -165,13 +165,19 @@ def _ramadan_start(year: int) -> dt.date | None:
 
 @dataclass(frozen=True, slots=True)
 class PartOfDayInterval:
-    """A part-of-day named interval (e.g. morning = 04:00–12:00 today)."""
+    """A part-of-day named interval (e.g. morning = 04:00–12:00 today).
+
+    Surfaces by default (`latent=False`) to match upstream Duckling, which
+    classifies bare `مساء`/`الصباح`/`الليلة` as a time entity in production
+    data. Callers that want to suppress these can still filter the dim
+    list, but they should not have to opt in via `with_latent=True`.
+    """
 
     name: str
     start_hour: int
     end_hour: int
     grain: Grain = Grain.HOUR
-    latent: bool = True
+    latent: bool = False
 
     def resolve(self, context) -> TimeValue:
         ref_day = context.reference_time.replace(

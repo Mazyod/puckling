@@ -98,6 +98,13 @@ def _prod_iso(tokens: tuple[Token, ...]) -> Token:
     return Token(dim="amount_of_money", value=money(value=n, currency=code))
 
 
+def _prod_iso_left(tokens: tuple[Token, ...]) -> Token:
+    """`<ISO> <n>` (e.g. `aed 2,420.00`) — code on the left, numeral on the right."""
+    code = tokens[0].value.text.upper()
+    n = tokens[1].value.value
+    return Token(dim="amount_of_money", value=money(value=n, currency=code))
+
+
 RULES: tuple[Rule, ...] = (
     Rule(
         name="integer (numeric, ar/en digits)",
@@ -204,6 +211,13 @@ RULES: tuple[Rule, ...] = (
         name="<n> <ISO>",
         pattern=(_ANY_NUM, regex(rf"(?:{'|'.join(_ISO_CODES)})\b")),
         prod=_prod_iso,
+    ),
+    Rule(
+        # `<ISO> <n>` mirror, common in production data where the bank
+        # ledger format prefixes the code: `aed 2,420.00`, `usd 1,000`.
+        name="<ISO> <n>",
+        pattern=(regex(rf"(?:{'|'.join(_ISO_CODES)})\b"), _ANY_NUM),
+        prod=_prod_iso_left,
     ),
     # $ adjacent to a number → USD.
     Rule(

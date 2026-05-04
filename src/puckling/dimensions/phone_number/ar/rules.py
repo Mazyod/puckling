@@ -28,7 +28,11 @@ _BOUNDARY_L = (
     rf"(?<!\({_DIGIT}{{3}}\s)"
     rf"(?<!\({_DIGIT}{{4}}\s)"
 )
-_BOUNDARY_R = r"(?![\p{L}\p{N}_@/+-])(?!(?:\.[\p{L}_]))"
+# Drop `\p{L}` from the right boundary: a phone number followed by a letter
+# (e.g. `078654xxxxxx3001`, the masked-card format produced by upstream
+# pipelines) must still surface. Identifier-internal false positives are
+# already filtered by `_BOUNDARY_L` rejecting a letter on the left.
+_BOUNDARY_R = r"(?![\p{N}_@/+-])(?!(?:\.[\p{L}_]))"
 
 # Mirrors Duckling's PhoneNumber pattern: optional country code, optional
 # balanced area code in parens, then two groups of 3-4 digits separated by

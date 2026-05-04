@@ -36,7 +36,12 @@ from puckling.types import Rule, Token, predicate, regex
 # ---------------------------------------------------------------------------
 # Helpers internal to this module.
 
-_WORD_BOUNDARY_LEFT = r"(?:(?<![\p{L}\p{N}_])|(?<=و))"
+# Arabic single-letter proclitics (و and, ل to/for, ب with/by, ف then/so,
+# ك like) attach directly to the next word with no separator, so a fresh
+# word boundary effectively starts after them. Treating them as boundary
+# anchors mirrors upstream Duckling, which surfaces `احد` from `لاحد`,
+# `أبريل` from `بأبريل`, etc.
+_WORD_BOUNDARY_LEFT = r"(?:(?<![\p{L}\p{N}_])|(?<=[ولبفك]))"
 _WORD_BOUNDARY_RIGHT = r"(?![\p{L}\p{N}_])"
 _NUMERIC_BOUNDARY_LEFT = r"(?<![\p{L}\p{N}_:/\-])"
 _NUMERIC_BOUNDARY_RIGHT = r"(?![\p{L}\p{N}_:/\-])"

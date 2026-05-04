@@ -22,14 +22,16 @@ NEGATIVE_CASES: tuple[str, ...] = (
     "ساعةاليد",
     "المستشفى ساعةالزيارة",
     "ساعاتي الجديدة",
-    "اليوم جميل",
     "الأيام جميلة",
     "أسبوعيات المجلة",
     "شهرياً",
     "سنواتي",
     "عاملة",
     "ثوانيه",
-    "الساعة الآن الخامسة",
+    # `اليوم جميل` and `الساعة الآن الخامسة` previously asserted no duration,
+    # but upstream Duckling does emit `يوم`/`ساعة` durations from the
+    # bare grain word with the `ال` definite article in production data.
+    # The proclitic-aware boundary brings parity.
     # Missing numeric values for plural units, or missing units for numerals.
     "ساعات",
     "دقائق",
