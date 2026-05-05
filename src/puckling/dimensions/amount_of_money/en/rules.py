@@ -18,7 +18,7 @@ from dataclasses import dataclass
 
 from puckling.dimensions.amount_of_money.types import AmountOfMoneyValue, money
 from puckling.dimensions.numeral.types import NumeralValue
-from puckling.predicates import is_natural, is_numeral, is_positive
+from puckling.predicates import is_numeral, is_positive
 from puckling.types import Rule, Token, predicate, regex
 
 # ---------------------------------------------------------------------------

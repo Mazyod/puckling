@@ -11,12 +11,13 @@ import json
 import random
 import urllib.error
 import urllib.parse
+from collections.abc import Sequence
 from dataclasses import dataclass
 from urllib.request import Request, urlopen
 
 import pytest
 
-from puckling import Options, analyze, parse
+from puckling import Context, DimensionName, Options, analyze, parse
 from puckling.dimensions.amount_of_money.ar.corpus import CORPUS as AR_MONEY_CORPUS
 from puckling.dimensions.amount_of_money.en.corpus import CORPUS as EN_MONEY_CORPUS
 from puckling.dimensions.credit_card.corpus import CORPUS as CREDIT_CARD_CORPUS
@@ -72,7 +73,7 @@ def _entity_spans(ent: object) -> tuple[int, int]:
     return int(start), int(end)
 
 
-def _assert_spans_consistent(text: str, entities: list[object]) -> None:
+def _assert_spans_consistent(text: str, entities: Sequence[object]) -> None:
     """Every entity must have valid indices and a body that matches `text[start:end]`."""
     for e in entities:
         start, end = _entity_spans(e)
@@ -87,13 +88,15 @@ def _assert_spans_consistent(text: str, entities: list[object]) -> None:
             assert body == text[start:end]
 
 
-def _assert_no_overlaps(text: str, entities: list[object]) -> None:
+def _assert_no_overlaps(text: str, entities: Sequence[object]) -> None:
     spans = sorted(_entity_spans(e) for e in entities)
     for (a_start, a_end), (b_start, b_end) in zip(spans, spans[1:], strict=False):
         assert a_end <= b_start, f"overlap: {(a_start, a_end)} intersects {(b_start, b_end)}"
 
 
-def _assert_parse_analyze_linkage(text: str, ctx: object, *, dims: tuple[str, ...]) -> None:
+def _assert_parse_analyze_linkage(
+    text: str, ctx: Context, *, dims: tuple[DimensionName, ...]
+) -> None:
     all_options = Options()
     parsed = parse(text, ctx, all_options, dims=dims)
     analyzed = analyze(text, ctx, all_options, dims=dims)
@@ -258,7 +261,7 @@ def test_currency_order_ar_prefix(ctx_ar):
 
 DUCKLING_URL = "http://localhost:18000/parse"
 DUCKLING_DIMS = ("amount-of-money", "duration", "email", "ordinal", "phone-number", "time", "url")
-DUCKLING_DIM_TO_PUCKLING = {
+DUCKLING_DIM_TO_PUCKLING: dict[str, DimensionName] = {
     "amount-of-money": "amount_of_money",
     "duration": "duration",
     "email": "email",
@@ -267,7 +270,7 @@ DUCKLING_DIM_TO_PUCKLING = {
     "time": "time",
     "url": "url",
 }
-DUCKLING_DIMS_SET = tuple(DUCKLING_DIM_TO_PUCKLING.values())
+DUCKLING_DIMS_SET: tuple[DimensionName, ...] = tuple(DUCKLING_DIM_TO_PUCKLING.values())
 LOCALE_MAP = {"en": "en_US", "ar": "ar_SA"}
 
 
