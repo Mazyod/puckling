@@ -62,10 +62,11 @@ def _fixed_duration_rule(
     real-world text, only the explicit `<numeral> <unit>` form.
     """
 
-    if latent:
-        d = DurationValue(value=value, grain=grain, latent=True)
-    else:
-        d = duration(value, grain)
+    d = (
+        DurationValue(value=value, grain=grain, latent=True)
+        if latent
+        else duration(value, grain)
+    )
 
     def prod(_: tuple[Token, ...]) -> Token | None:
         return Token(dim="duration", value=d)
