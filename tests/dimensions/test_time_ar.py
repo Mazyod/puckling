@@ -139,6 +139,27 @@ def test_temporal_prefix_plus_duration_is_a_time(
 @pytest.mark.parametrize(
     "phrase, expected_body",
     [
+        ("ب2025", "2025"),
+        ("ل2025", "2025"),
+        ("و2025", "2025"),
+        ("عملياتي ب2025", "2025"),
+    ],
+)
+def test_proclitic_glued_year(phrase: str, expected_body: str, ctx_ar) -> None:
+    """Proclitic letter glued before a 4-digit year must surface the year as
+    a time entity.
+    """
+    entities = parse(phrase, ctx_ar, Options(), dims=("time",))
+    times = [e for e in entities if e.dim == "time"]
+    assert times, f"expected a time entity for {phrase!r}; got {entities!r}"
+    assert any(e.body == expected_body for e in times), (
+        f"expected body {expected_body!r}, got {[e.body for e in times]!r}"
+    )
+
+
+@pytest.mark.parametrize(
+    "phrase, expected_body",
+    [
         # شهر extends through following month name.
         ("شهر يوليو", "شهر يوليو"),
         ("شهر مارس", "شهر مارس"),
@@ -168,4 +189,62 @@ def test_month_day_head_extension(
     assert times, f"expected a time entity for {phrase!r}; got {entities!r}"
     assert any(e.body == expected_body for e in times), (
         f"expected body {expected_body!r}, got {[e.body for e in times]!r}"
+    )
+
+
+@pytest.mark.parametrize(
+    "phrase, expected_body",
+    [
+        # اليوم + day-period words: each day-period suffix attaches to
+        # the preceding day-grained instant as a single time entity.
+        ("اليوم الصبح", "اليوم الصبح"),
+        ("اليوم الفجر", "اليوم الفجر"),
+        ("اليوم الظهر", "اليوم الظهر"),
+        ("اليوم العصر", "اليوم العصر"),
+        ("اليوم المغرب", "اليوم المغرب"),
+        ("اليوم المساء", "اليوم المساء"),
+        ("اليوم الليل", "اليوم الليل"),
+        # Other day-grained instants compose the same way.
+        ("بكره الصبح", "بكره الصبح"),
+        ("بكرة الفجر", "بكرة الفجر"),
+        ("امس الصبح", "امس الصبح"),
+        ("غدا الظهر", "غدا الظهر"),
+        # Tanwiin/alif suffix forms also attach.
+        ("اليوم صباحا", "اليوم صباحا"),
+        ("اليوم ظهرا", "اليوم ظهرا"),
+        ("اليوم ليلا", "اليوم ليلا"),
+    ],
+)
+def test_day_instant_plus_day_period(
+    phrase: str, expected_body: str, ctx_ar
+) -> None:
+    """`<day-instant> <day-period>` must surface as a single time entity
+    covering the whole phrase, mirroring duckling's unification.
+    """
+    entities = parse(phrase, ctx_ar, Options(), dims=("time",))
+    times = [e for e in entities if e.dim == "time"]
+    assert times, f"expected a time entity for {phrase!r}; got {entities!r}"
+    assert any(e.body == expected_body for e in times), (
+        f"expected body {expected_body!r}, got {[e.body for e in times]!r}"
+    )
+
+
+@pytest.mark.parametrize(
+    "phrase",
+    [
+        # Bare day-period words after a non-time word must NOT fire the
+        # composition rule. `صلاة الفجر` ("dawn prayer") is not a time.
+        "صلاة الفجر",
+        "صلاة الظهر",
+        "صلاة المغرب",
+        "صلاة العصر",
+    ],
+)
+def test_day_period_does_not_fire_without_day_instant(
+    phrase: str, ctx_ar
+) -> None:
+    entities = parse(phrase, ctx_ar, Options(), dims=("time",))
+    times = [e for e in entities if e.dim == "time"]
+    assert not any(phrase in e.body for e in times), (
+        f"expected no full-phrase time entity for {phrase!r}; got {[e.body for e in times]!r}"
     )

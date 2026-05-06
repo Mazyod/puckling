@@ -96,6 +96,17 @@ def _ordinals_1_to_10(tokens: tuple[Token, ...]) -> Token | None:
     return _lookup_ordinal(tokens, _ORDINALS_MAP)
 
 
+def _ordinals_1_to_10_dual(tokens: tuple[Token, ...]) -> Token | None:
+    """Resolve the first..tenth rule, which has two branches with separate captures."""
+    stem = _captured(tokens, 0) or _captured(tokens, 1)
+    if stem is None:
+        return None
+    value = _ORDINALS_MAP.get(stem)
+    if value is None:
+        return None
+    return Token(dim="ordinal", value=ordinal(value))
+
+
 def _ordinals_11(_tokens: tuple[Token, ...]) -> Token | None:
     return Token(dim="ordinal", value=ordinal(11))
 
@@ -130,11 +141,12 @@ RULES: tuple[Rule, ...] = (
         pattern=(
             regex(
                 _bounded(
-                    r"(?:ال)?([أا]ول|ثاني?|ثالث|رابع|خامس|سادس|سابع|ثامن|تاسع|عاشر)[ةهى]?"
+                    r"(?:ال)?([أا]ول|ثالث|رابع|خامس|سادس|سابع|ثامن|تاسع|عاشر)[ةهى]?"
+                    r"|ال(ثاني?)[ةهى]?"
                 )
             ),
         ),
-        prod=_ordinals_1_to_10,
+        prod=_ordinals_1_to_10_dual,
     ),
     Rule(
         name="ordinals (eleventh)",

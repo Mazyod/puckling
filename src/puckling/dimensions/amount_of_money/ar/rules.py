@@ -25,7 +25,7 @@ from puckling.types import Rule, Token, predicate, regex
 # punctuation-fragmented numbers like "10,5 دولار".
 
 _AR_WORD_BOUND_R = r"(?![\p{L}\p{N}])"
-_NUMERIC_RE = r"(?<![\p{L}\p{N}.,٫])(?:[٠-٩]+(?:٫[٠-٩]+)?|\d+(?:\.\d+)?)"
+_NUMERIC_RE = r"(?:(?<![\p{L}\p{N}.,٫])|(?<=[ولبفك])(?<![\p{L}\p{N}_][ولبفك]))(?:[٠-٩]+(?:٫[٠-٩]+)?|\d+(?:\.\d+)?)"
 
 
 def _word_currency(pattern: str) -> str:

@@ -11,7 +11,7 @@ def _ordinal(value: int) -> dict:
 
 CORPUS: tuple[Example, ...] = (
     examples(_ordinal(1), ["الاول", "الأول", "اول"]),
-    examples(_ordinal(2), ["الثاني", "الثان", "ثاني"]),
+    examples(_ordinal(2), ["الثاني", "الثان"]),
     examples(_ordinal(3), ["الثالث", "ثالث"]),
     examples(_ordinal(4), ["الرابع", "رابع"]),
     examples(_ordinal(5), ["الخامس", "الخامسة"]),

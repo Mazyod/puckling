@@ -94,3 +94,20 @@ def test_comparator_does_not_emit_duplicate_overlapping_money(ctx_ar):
     assert len(money_entities) == 1, (
         f"expected single amount-of-money entity; got {[(e.body, e.start, e.end) for e in money_entities]!r}"
     )
+
+
+GLUED_AMOUNT_CASES: tuple[tuple[str, dict], ...] = (
+    ("8الف دينار", {"value": 8000, "unit": "Dinar"}),
+    ("120الف دينار", {"value": 120000, "unit": "Dinar"}),
+    ("3الف دولار", {"value": 3000, "unit": "USD"}),
+)
+
+
+@pytest.mark.parametrize("phrase, expected", GLUED_AMOUNT_CASES)
+def test_glued_digit_multiplier_currency(phrase, expected, ctx_ar):
+    """Number glued to multiplier (`8الف دينار`) must parse the same as spaced."""
+    entities = parse(phrase, ctx_ar, Options(), dims=("amount_of_money",))
+    assert entities, f"no entity for {phrase!r}"
+    assert any(value_matches(e.value, expected) for e in entities), (
+        f"phrase={phrase!r} expected={expected!r} got={[e.value for e in entities]!r}"
+    )

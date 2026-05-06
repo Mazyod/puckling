@@ -304,8 +304,15 @@ def last_day_of_week(weekday: int) -> RelTime:
     return RelTime(compute=go, grain=Grain.DAY, key=("last_dow", weekday))
 
 
-def named_month(month: int) -> RelTime:
-    """The named month, year-agnostic — picks the nearest occurrence."""
+def named_month(month: int, *, latent: bool = False) -> RelTime:
+    """The named month, year-agnostic — picks the nearest occurrence.
+
+    `latent=True` is used for ambiguous month names that collide with common
+    non-temporal English words (notably "May", which is also a modal verb).
+    Latent values are suppressed by the default API surface but remain in the
+    parse forest, so composition rules like `<month> <day>` and
+    `last/next/this <month>` still find them and surface non-latent results.
+    """
 
     def go(ref: dt.datetime) -> SingleTimeValue | None:
         # If we're past the month this year, return next year's; otherwise this year's.
@@ -315,7 +322,12 @@ def named_month(month: int) -> RelTime:
             grain=Grain.MONTH,
         )
 
-    return RelTime(compute=go, grain=Grain.MONTH, key=("named_month", month))
+    return RelTime(
+        compute=go,
+        grain=Grain.MONTH,
+        latent=latent,
+        key=("named_month", month),
+    )
 
 
 def named_hijri_month(name: str) -> RelTime:

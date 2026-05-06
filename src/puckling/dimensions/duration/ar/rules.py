@@ -24,10 +24,10 @@ from puckling.types import RegexMatch, Rule, Token, predicate, regex
 # fresh word boundary; the definite article `ال` is also covered because
 # its second letter `ل` is the char immediately before the duration head
 # (e.g. `الدقيقه` → duration `دقيقه`).
-_WORD_BOUNDARY_LEFT = r"(?:(?<![\p{L}\p{N}_])|(?<=[ولبفك]))"
+_WORD_BOUNDARY_LEFT = r"(?:(?<![\p{L}\p{N}_])|(?<=[ولبفك])|(?<=\p{N}))"
 _WORD_BOUNDARY_RIGHT = r"(?![\p{L}\p{N}_])"
-_NUMERIC_BOUNDARY_LEFT = r"(?<![\p{L}\p{N}_.,٫٬/+−])(?<!--)"
-_NUMERIC_BOUNDARY_RIGHT = r"(?![\p{L}\p{N}_.,٫٬/+−-])"
+_NUMERIC_BOUNDARY_LEFT = r"(?:(?<![\p{L}\p{N}_.,٫٬/+−])|(?<=[ولبفك])(?<![\p{L}\p{N}_][ولبفك]))(?<!--)"
+_NUMERIC_BOUNDARY_RIGHT = r"(?:(?![\p{L}\p{N}_.,٫٬/+−-])|(?=\p{L})(?=\p{Arabic}))"
 
 
 def _word_re(pattern: str) -> str:

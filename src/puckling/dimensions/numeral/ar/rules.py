@@ -20,13 +20,13 @@ from puckling.types import Rule, Token, predicate, regex
 # ---------------------------------------------------------------------------
 # helpers
 
-_WORD_BOUNDARY_LEFT = r"(?:(?<![\p{L}\p{N}_])|(?<=و))"
+_WORD_BOUNDARY_LEFT = r"(?:(?<![\p{L}\p{N}_])|(?<=و)|(?<=\p{N}))"
 _WORD_BOUNDARY_RIGHT = r"(?![\p{L}\p{N}_])"
 # `,` is a thousands separator only when sandwiched between digits
 # (`1,234`); after a non-digit it is just a list/sentence separator
 # (`رابع,20`) and must not block a fresh numeric token.
-_NUMERIC_BOUNDARY_LEFT = r"(?<![\p{L}\p{N}_.٫٬/+−])(?<!--)(?<!\d,)"
-_NUMERIC_BOUNDARY_RIGHT = r"(?![\p{L}\p{N}_.,٫٬/+−-])"
+_NUMERIC_BOUNDARY_LEFT = r"(?:(?<![\p{L}\p{N}_.٫٬/+−])|(?<=[ولبفك])(?<![\p{L}\p{N}_][ولبفك]))(?<!--)(?<!\d,)"
+_NUMERIC_BOUNDARY_RIGHT = r"(?:(?![\p{L}\p{N}_.,٫٬/+−-])|(?=\p{L})(?=\p{Arabic}))"
 
 
 def _word_re(pattern: str) -> str:

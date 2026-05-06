@@ -44,10 +44,10 @@ from puckling.types import Rule, Token, predicate, regex
 # word boundary effectively starts after them. Treating them as boundary
 # anchors mirrors upstream Duckling, which surfaces `احد` from `لاحد`,
 # `أبريل` from `بأبريل`, etc.
-_WORD_BOUNDARY_LEFT = r"(?:(?<![\p{L}\p{N}_])|(?<=[ولبفك]))"
+_WORD_BOUNDARY_LEFT = r"(?:(?<![\p{L}\p{N}_])|(?<=[ولبفك])|(?<=\p{N}))"
 _WORD_BOUNDARY_RIGHT = r"(?![\p{L}\p{N}_])"
-_NUMERIC_BOUNDARY_LEFT = r"(?<![\p{L}\p{N}_:/\-])"
-_NUMERIC_BOUNDARY_RIGHT = r"(?![\p{L}\p{N}_:/\-])"
+_NUMERIC_BOUNDARY_LEFT = r"(?:(?<![\p{L}\p{N}_:/\-])|(?<=[ولبفك])(?<![\p{L}\p{N}_][ولبفك]))"
+_NUMERIC_BOUNDARY_RIGHT = r"(?:(?![\p{L}\p{N}_:/\-])|(?=\p{L})(?=\p{Arabic}))"
 _CLOCK_BOUNDARY_LEFT = r"(?<![\p{L}\p{N}_:.])"
 _CLOCK_BOUNDARY_RIGHT = r"(?![\p{L}\p{N}_])(?!(?:[:.][0-9٠-٩]))"
 
@@ -379,6 +379,40 @@ def _prod_month_plus_year(matched: tuple[Token, ...]) -> Token | None:
 
 
 # ---------------------------------------------------------------------------
+# `<day-instant> <day-period>` → time.
+#
+# Duckling unifies `اليوم الصبح` / `بكره الفجر` / `امس المساء` into a single
+# time entity. Without this rule, puckling emits only the inner day-grained
+# instant token (the day-period suffix is dropped). The composition fires
+# only when the inner token is a DAY-grained time token, so unrelated
+# phrases like `صلاة الفجر` ("dawn prayer") do not match.
+
+_DAY_PERIOD_PAT = (
+    r"الصبح|صباحاً?|الفجر|الظهر|ظهراً?|العصر|المغرب|المساء|مساءاً?|الليل|ليلاً?"
+)
+
+
+def _is_day_grain_time(t: Token) -> bool:
+    if t.dim != "time":
+        return False
+    return getattr(t.value, "grain", None) is Grain.DAY
+
+
+def _prod_day_instant_plus_period(matched: tuple[Token, ...]) -> Token | None:
+    inner_tok = matched[0]
+    inner_value = inner_tok.value
+    period_text = getattr(matched[1].value, "text", "") or ""
+    inner_key = getattr(inner_value, "key", ()) or ("day_inner", id(inner_value))
+    return Token(
+        dim="time",
+        value=WrappedTimeData(
+            inner=time(always_true(), Grain.DAY),
+            key=("day_with_period", inner_key, period_text.strip()),
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Generic `<temporal-prefix> <duration>` → time.
 #
 # Closes the largest single class of AR puckling-vs-duckling divergences:
@@ -531,6 +565,15 @@ RULES: tuple[Rule, ...] = (
             predicate(_is_year_token, "is_year_time"),
         ),
         prod=_prod_month_plus_year,
+    ),
+    # Day-instant + day-period -----------------------------------------------
+    Rule(
+        name="<day-instant> <day-period>",
+        pattern=(
+            predicate(_is_day_grain_time, "is_day_grain_time"),
+            regex(_word_re(_DAY_PERIOD_PAT)),
+        ),
+        prod=_prod_day_instant_plus_period,
     ),
     # Holidays ---------------------------------------------------------------
     Rule(name="Eid al-Fitr", pattern=(regex(_word_re(r"عيد ال[فق]طر")),), prod=_prod_eid_al_fitr),

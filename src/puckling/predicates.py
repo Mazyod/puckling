@@ -67,11 +67,20 @@ def is_grain(t: Token) -> bool:
 
 
 def is_natural(t: Token) -> bool:
-    """Whole, non-negative integer numerals."""
+    """Whole, non-negative numerals — accepts int and integer-valued float.
+
+    The AR amount-of-money worker produces float numerals (`24.0`) for
+    integer literals; rejecting those broke duration composition whenever
+    both `duration` and `amount_of_money` dims were loaded together.
+    """
     if t.dim != "numeral":
         return False
     v = getattr(t.value, "value", None)
-    return isinstance(v, int) and v >= 0
+    if isinstance(v, int):
+        return v >= 0
+    if isinstance(v, float):
+        return v >= 0 and v.is_integer()
+    return False
 
 
 def is_positive(t: Token) -> bool:

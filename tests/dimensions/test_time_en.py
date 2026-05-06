@@ -40,6 +40,31 @@ NEGATIVE_CASES: tuple[str, ...] = (
     "wadi3a in nintendo",
     "abdul@1987 password",
     "is my pin 7298",
+    # Bare standalone "may" in modal-verb position must not fire as a month.
+    # Duckling gates the month name "May" because it collides with the
+    # English modal verb. Composition rules (`may 5`, `5 may`, `last may`,
+    # `this may`, `next may`) still fire — only the bare standalone is gated.
+    "may i ask",
+    "may allah bless you",
+    "to whom it may concern",
+    "may i help you",
+    "it may rain",
+    "you may proceed",
+    "may we have a moment",
+)
+
+
+# Composition phrases that include the month "May" — these MUST still resolve
+# as time even though the bare standalone "may" rule is now latent.
+MAY_COMPOSITION_PHRASES: tuple[str, ...] = (
+    "may 5 2025",
+    "5 may",
+    "may 5",
+    "5th of may",
+    "may 2025",
+    "last may",
+    "this may",
+    "next may",
 )
 
 
@@ -65,6 +90,12 @@ def test_corpus(phrase: str, expected: dict, ctx_en) -> None:
 @pytest.mark.parametrize("phrase", NEGATIVE_CASES)
 def test_negative_cases(phrase: str, ctx_en) -> None:
     assert parse(phrase, ctx_en, Options(), dims=("time",)) == []
+
+
+@pytest.mark.parametrize("phrase", MAY_COMPOSITION_PHRASES)
+def test_may_compositions_still_fire(phrase: str, ctx_en) -> None:
+    entities = parse(phrase, ctx_en, Options(), dims=("time",))
+    assert entities, f"no entity for {phrase!r}"
 
 
 # Hijri month coverage — Ramadan family is the documented production gap

@@ -77,3 +77,24 @@ def test_corpus(phrase, expected, ctx_ar):
 @pytest.mark.parametrize("phrase", NEGATIVE_CASES)
 def test_negative_cases(phrase, ctx_ar):
     assert parse(phrase, ctx_ar, Options(), dims=("duration",)) == []
+
+
+GLUED_CASES: tuple[tuple[str, dict], ...] = (
+    ("24ساعه", {"value": 24, "unit": "hour"}),
+    ("12شهر", {"value": 12, "unit": "month"}),
+    ("3اشهر", {"value": 3, "unit": "month"}),
+    ("5دقائق", {"value": 5, "unit": "minute"}),
+    ("7ايام", {"value": 7, "unit": "day"}),
+)
+
+
+@pytest.mark.parametrize("phrase, expected", GLUED_CASES)
+def test_glued_digit_unit(phrase, expected, ctx_ar):
+    """Numeric and unit glued without space (e.g. `24ساعه`) must parse the
+    same as the spaced form (`24 ساعه`).
+    """
+    entities = parse(phrase, ctx_ar, Options(), dims=("duration",))
+    assert entities, f"no entity for {phrase!r}"
+    assert any(value_matches(e.value, expected) for e in entities), (
+        f"phrase={phrase!r} expected={expected!r} got={[e.value for e in entities]!r}"
+    )

@@ -106,19 +106,26 @@ WEEKDAYS = (
     ("Sunday", r"sundays?|sun\.?", 6),
 )
 
-MONTHS = (
-    ("January", r"january|jan\.?", 1),
-    ("February", r"february|feb\.?", 2),
-    ("March", r"march|mar\.?", 3),
-    ("April", r"april|apr\.?", 4),
-    ("May", r"may", 5),
-    ("June", r"june|jun\.?", 6),
-    ("July", r"july|jul\.?", 7),
-    ("August", r"august|aug\.?", 8),
-    ("September", r"september|sept?\.?", 9),
-    ("October", r"october|oct\.?", 10),
-    ("November", r"november|nov\.?", 11),
-    ("December", r"december|dec\.?", 12),
+MONTHS: tuple[tuple[str, str, int, bool], ...] = (
+    ("January", r"january|jan\.?", 1, False),
+    ("February", r"february|feb\.?", 2, False),
+    ("March", r"march|mar\.?", 3, False),
+    ("April", r"april|apr\.?", 4, False),
+    # "May" collides with the English modal verb. Mark the bare standalone
+    # rule latent so phrases like "may i ask" / "may allah bless you" don't
+    # surface as a time. Composition rules (`<month> <day>`, `<dom> of <month>`,
+    # `<month> <year>`, `last/next/this <month>`) still produce non-latent
+    # results because they construct fresh RelTime values via the helper
+    # combinators (`with_day_of_month`, `at_year_in`) which default to
+    # `latent=False`.
+    ("May", r"may", 5, True),
+    ("June", r"june|jun\.?", 6, False),
+    ("July", r"july|jul\.?", 7, False),
+    ("August", r"august|aug\.?", 8, False),
+    ("September", r"september|sept?\.?", 9, False),
+    ("October", r"october|oct\.?", 10, False),
+    ("November", r"november|nov\.?", 11, False),
+    ("December", r"december|dec\.?", 12, False),
 )
 
 # Hijri (Islamic) month names — Ramadan family is a documented EN parity gap
@@ -208,9 +215,9 @@ def _weekday_rule(name: str, pat: str, weekday: int) -> Rule:
     return Rule(name=f"day-of-week ({name})", pattern=(regex(_wb(pat)),), prod=prod)
 
 
-def _month_rule(name: str, pat: str, month: int) -> Rule:
+def _month_rule(name: str, pat: str, month: int, latent: bool = False) -> Rule:
     def prod(_: tuple[Token, ...]) -> Token | None:
-        return _tt(named_month(month))
+        return _tt(named_month(month, latent=latent))
 
     return Rule(name=f"month ({name})", pattern=(regex(_wb(pat)),), prod=prod)
 
@@ -226,8 +233,8 @@ def _all_named_rules() -> tuple[Rule, ...]:
     rules: list[Rule] = []
     for name, pat, wd in WEEKDAYS:
         rules.append(_weekday_rule(name, pat, wd))
-    for name, pat, m in MONTHS:
-        rules.append(_month_rule(name, pat, m))
+    for name, pat, m, latent in MONTHS:
+        rules.append(_month_rule(name, pat, m, latent=latent))
     for name, pat in HIJRI_MONTHS:
         rules.append(_hijri_month_rule(name, pat))
     return tuple(rules)
@@ -947,6 +954,39 @@ _next_dow_rule = Rule(
         predicate(_is_named_dow, "is_named_dow"),
     ),
     prod=_next_dow_prod,
+)
+
+
+# ---------------------------------------------------------------------------
+# this|next|last <named-month> — surfaces a non-latent month even when the
+# bare month rule is latent (e.g. "May" gated against modal-verb usage).
+def _is_named_month(t: Token) -> bool:
+    """True iff `t` is a RelTime built by `named_month` (a Gregorian month)."""
+    if t.dim != "time":
+        return False
+    rt = t.value
+    if not hasattr(rt, "key"):
+        return False
+    return bool(rt.key) and rt.key[0] == "named_month"
+
+
+def _next_named_month_prod(tokens: tuple[Token, ...]) -> Token | None:
+    direction_match = tokens[0].value
+    month_tok = tokens[1]
+    if not isinstance(direction_match, RegexMatch):
+        return None
+    if not _is_named_month(month_tok):
+        return None
+    return _tt(month_tok.value.not_latent())
+
+
+_next_named_month_rule = Rule(
+    name="this|next|last <named-month>",
+    pattern=(
+        regex(r"this|next|last|past|previous|coming|upcoming"),
+        predicate(_is_named_month, "is_named_month"),
+    ),
+    prod=_next_named_month_prod,
 )
 
 
@@ -2220,6 +2260,7 @@ _BASE_RULES: tuple[Rule, ...] = (
     _dom_regex_month_year_rule,
     _cycle_rule,
     _next_dow_rule,
+    _next_named_month_rule,
     _hhmmss_rule,
     _hhmm_rule,
     _hhmm_ampm_rule,
