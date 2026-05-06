@@ -14,7 +14,7 @@ from __future__ import annotations
 from puckling.dimensions.amount_of_money.types import AmountOfMoneyValue, money
 from puckling.dimensions.numeral.helpers import parse_arabic_decimal
 from puckling.dimensions.numeral.types import NumeralValue
-from puckling.predicates import is_numeral, is_positive
+from puckling.predicates import is_dim, is_numeral, is_positive
 from puckling.types import Rule, Token, predicate, regex
 
 # ---------------------------------------------------------------------------
@@ -134,6 +134,19 @@ def _prod_intersect_waw(tokens: tuple[Token, ...]) -> Token | None:
 
 
 _ISO_CODES: tuple[str, ...] = ("KWD", "SAR", "AED", "QAR", "JOD", "EGP", "LBP", "USD")
+
+_COMPARATOR_PAT = (
+    r"(?:[اأ]كثر\s+من|[اأ]قل\s+من|قريب\s+من|قراب[ةه]|تقريب[اًا]?ً?|حوال[يى]|فوق|دون)"
+)
+_COMPARATOR_RE = rf"(?<![\p{{L}}\p{{N}}_])(?:{_COMPARATOR_PAT})(?![\p{{L}}\p{{N}}_])"
+
+
+def _prod_comparator_amount(tokens: tuple[Token, ...]) -> Token:
+    inner = tokens[1].value
+    return Token(
+        dim="amount_of_money",
+        value=money(value=inner.value, currency=inner.currency),
+    )
 
 
 def _prod_iso(tokens: tuple[Token, ...]) -> Token:
@@ -292,5 +305,13 @@ RULES: tuple[Rule, ...] = (
             ),
         ),
         prod=_prod_intersect_waw,
+    ),
+    Rule(
+        name="<comparator> <amount-of-money>",
+        pattern=(
+            regex(_COMPARATOR_RE),
+            predicate(is_dim("amount_of_money"), "is_amount_of_money"),
+        ),
+        prod=_prod_comparator_amount,
     ),
 )

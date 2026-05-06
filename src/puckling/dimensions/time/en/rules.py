@@ -38,6 +38,7 @@ from puckling.dimensions.time.en._helpers import (
     interval,
     last_day_of_week,
     month_day,
+    named_hijri_month,
     named_month,
     next_day_of_week,
     now,
@@ -120,6 +121,13 @@ MONTHS = (
     ("December", r"december|dec\.?", 12),
 )
 
+# Hijri (Islamic) month names — Ramadan family is a documented EN parity gap
+# (~281 production rows). Surfaces as a MONTH-grain time so it composes with
+# `<month> <year>` and `in/during <month>`.
+HIJRI_MONTHS: tuple[tuple[str, str], ...] = (
+    ("Ramadan", r"ramadan|ramadhan|ramzan|ramathan"),
+)
+
 # Cardinal word -> integer for small numbers commonly written out (1..31).
 WORD_NUMS: dict[str, int] = {
     "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
@@ -173,7 +181,11 @@ def _instants_rules() -> tuple[Rule, ...]:
     out.append(
         Rule(
             name="now",
-            pattern=(regex(r"(just\s*)?now|right\s+now|at\s+the\s+moment|atm|immediately"),),
+            pattern=(
+                regex(
+                    r"(?<!\w)(?:(?:just\s*)?now|right\s+now|at\s+the\s+moment|atm|immediately)(?!\w)"
+                ),
+            ),
             prod=now_prod,
         )
     )
@@ -181,18 +193,33 @@ def _instants_rules() -> tuple[Rule, ...]:
     return tuple(out)
 
 
+# Short weekday/month aliases (mon, tue, wed, ..., jan, feb, mar, ...) match
+# inside longer English words (money, monthly, married, decline, statment) when
+# anchored without word boundaries. Wrap each table pattern in non-word
+# lookarounds so the engine only emits the token at real word boundaries.
+def _wb(pat: str) -> str:
+    return rf"(?<!\w)(?:{pat})(?!\w)"
+
+
 def _weekday_rule(name: str, pat: str, weekday: int) -> Rule:
     def prod(_: tuple[Token, ...]) -> Token | None:
         return _tt(day_of_week_relative(weekday))
 
-    return Rule(name=f"day-of-week ({name})", pattern=(regex(pat),), prod=prod)
+    return Rule(name=f"day-of-week ({name})", pattern=(regex(_wb(pat)),), prod=prod)
 
 
 def _month_rule(name: str, pat: str, month: int) -> Rule:
     def prod(_: tuple[Token, ...]) -> Token | None:
         return _tt(named_month(month))
 
-    return Rule(name=f"month ({name})", pattern=(regex(pat),), prod=prod)
+    return Rule(name=f"month ({name})", pattern=(regex(_wb(pat)),), prod=prod)
+
+
+def _hijri_month_rule(name: str, pat: str) -> Rule:
+    def prod(_: tuple[Token, ...]) -> Token | None:
+        return _tt(named_hijri_month(name))
+
+    return Rule(name=f"hijri-month ({name})", pattern=(regex(_wb(pat)),), prod=prod)
 
 
 def _all_named_rules() -> tuple[Rule, ...]:
@@ -201,6 +228,8 @@ def _all_named_rules() -> tuple[Rule, ...]:
         rules.append(_weekday_rule(name, pat, wd))
     for name, pat, m in MONTHS:
         rules.append(_month_rule(name, pat, m))
+    for name, pat in HIJRI_MONTHS:
+        rules.append(_hijri_month_rule(name, pat))
     return tuple(rules)
 
 
@@ -223,7 +252,7 @@ def _year_in_prod(tokens: tuple[Token, ...]) -> Token | None:
 
 _year_in_rule = Rule(
     name="in <year>",
-    pattern=(regex(r"in"), regex(r"\d{2,4}")),
+    pattern=(regex(r"(?<!\w)in(?!\w)"), regex(r"\d{2,4}")),
     prod=_year_in_prod,
 )
 
@@ -267,7 +296,7 @@ def _year_after_in_prod(tokens: tuple[Token, ...]) -> Token | None:
 
 _year_in_adbc_rule = Rule(
     name="in <year> A.D./BC",
-    pattern=(regex(r"in"), regex(r"\d{1,4}"), regex(r"a\.?d\.?|b\.?c\.?")),
+    pattern=(regex(r"(?<!\w)in(?!\w)"), regex(r"\d{1,4}"), regex(r"a\.?d\.?|b\.?c\.?")),
     prod=_year_after_in_prod,
 )
 
@@ -1006,7 +1035,7 @@ def _hhmm_am_pm_prod(tokens: tuple[Token, ...]) -> Token | None:
 _hhmm_ampm_rule = Rule(
     name="hh:mm am/pm",
     pattern=(
-        regex(r"((?:1[012]|0?[1-9]))(?:[:.]([0-5]\d))?"),
+        regex(r"(?<!\w)((?:1[012]|0?[1-9]))(?:[:.]([0-5]\d))?"),
         regex(_AMPM),
     ),
     prod=_hhmm_am_pm_prod,
@@ -1032,7 +1061,7 @@ def _bare_hour_am_pm_prod(tokens: tuple[Token, ...]) -> Token | None:
 
 _bare_hour_ampm_rule = Rule(
     name="<H> am/pm",
-    pattern=(regex(r"(?:1[012]|0?[1-9])"), regex(_AMPM)),
+    pattern=(regex(r"(?<!\w)(?:1[012]|0?[1-9])"), regex(_AMPM)),
     prod=_bare_hour_am_pm_prod,
 )
 
@@ -1131,7 +1160,7 @@ def _at_tod_prod(tokens: tuple[Token, ...]) -> Token | None:
 
 _at_tod_rule = Rule(
     name="at <time-of-day>",
-    pattern=(regex(r"at|@"), predicate(is_time, "is_time")),
+    pattern=(regex(r"(?<!\w)(?:at|@)"), predicate(is_time, "is_time")),
     prod=_at_tod_prod,
 )
 
@@ -1534,7 +1563,7 @@ _in_n_grain_rule = Rule(
     # silently composes a malformed `in -3 days` time entity.
     name="in <n> <grain>",
     pattern=(
-        regex(r"in"),
+        regex(r"(?<!\w)in(?!\w)"),
         predicate(is_natural, "is_n"),
         regex(r"seconds?|minutes?|hours?|days?|weeks?|months?|years?"),
     ),
@@ -1568,7 +1597,7 @@ def _in_digits_grain_prod(tokens: tuple[Token, ...]) -> Token | None:
 _in_digits_grain_rule = Rule(
     name="in <digits> <grain>",
     pattern=(
-        regex(r"in"),
+        regex(r"(?<!\w)in(?!\w)"),
         regex(r"\d+|" + "|".join(WORD_NUMS.keys())),
         regex(r"seconds?|minutes?|hours?|days?|weeks?|months?|years?"),
     ),
@@ -1783,7 +1812,7 @@ def _in_a_grain_prod(tokens: tuple[Token, ...]) -> Token | None:
 _in_a_grain_rule = Rule(
     name="in a <grain>",
     pattern=(
-        regex(r"in"),
+        regex(r"(?<!\w)in(?!\w)"),
         regex(r"an?|one"),
         regex(r"second|minute|hour|day|week|month|year"),
     ),
@@ -2145,13 +2174,13 @@ _absorb_on_rule = Rule(
 
 _absorb_in_month_rule = Rule(
     name="in <month>",
-    pattern=(regex(r"in|during"), predicate(_is_month_grain, "is_month")),
+    pattern=(regex(r"(?<!\w)(?:in|during)(?!\w)"), predicate(_is_month_grain, "is_month")),
     prod=_absorb_on_prod,
 )
 
 _absorb_in_year_rule = Rule(
     name="in <year>",
-    pattern=(regex(r"in|during"), predicate(_is_year_grain, "is_year")),
+    pattern=(regex(r"(?<!\w)(?:in|during)(?!\w)"), predicate(_is_year_grain, "is_year")),
     prod=_absorb_on_prod,
 )
 

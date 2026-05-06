@@ -345,17 +345,24 @@ def test_ar_part_of_day_surfaces_without_with_latent(ctx_ar):
 
 
 def test_ar_duration_with_definite_article_prefix(ctx_ar):
-    """`مسابقه تحدي الدقيقه` must surface a duration on `دقيقه`. Pre-fix,
-    the duration rule's left boundary rejected the `ل` of the definite
-    article `ال`, so `الدقيقه`/`الساعة`/`اليوم` couldn't extract their
-    grain word as a one-unit duration.
+    """`مسابقه تحدي الدقيقه` must extract `دقيقه` from inside the definite
+    article `ال` proclitic. Pre-fix, the duration rule's left boundary
+    rejected the `ل`, so `الدقيقه`/`الساعة`/`اليوم` couldn't extract their
+    grain word at all.
+
+    Bare singular unit nouns are now emitted as latent durations (matching
+    duckling's production behavior — they're noun classifiers in real text,
+    not durations), so this test opts into latent to verify the boundary fix
+    still lets the token form for downstream composition rules.
     """
     text = "مسابقه تحدي الدقيقه"
-    result = parse(text, ctx_ar, Options(), dims=("duration",))
+    result = parse(text, ctx_ar, Options(with_latent=True), dims=("duration",))
     bodies = {(e.dim, e.body) for e in result}
     assert ("duration", "دقيقه") in bodies, (
         f"expected duration 'دقيقه'; got {sorted(bodies)!r}"
     )
+    # And by default — without latent — the bare singular must not surface.
+    assert parse(text, ctx_ar, Options(), dims=("duration",)) == []
 
 
 @pytest.mark.parametrize(

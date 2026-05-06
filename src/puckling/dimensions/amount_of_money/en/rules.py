@@ -259,6 +259,39 @@ def _intersect_at(idx: int):
     return prod
 
 
+# Comparator / precision / article words that may precede an explicit
+# amount-of-money phrase. Listed once so the rule list stays readable.
+# Multi-word comparators are encoded as alternations so the regex captures
+# them as a single match. The `(?<!\w)…(?!\w)` lookarounds enforce word
+# boundaries so prefixes don't fire word-internally (e.g. `over` inside
+# `cover`).
+_COMPARATOR_WORDS: tuple[str, ...] = (
+    r"more\s+than",
+    r"less\s+than",
+    r"at\s+least",
+    r"at\s+most",
+    r"up\s+to",
+    r"approximately",
+    r"around",
+    r"roughly",
+    r"about",
+    r"above",
+    r"below",
+    r"under",
+    r"over",
+    r"a",
+)
+_COMPARATOR_PATTERN = r"(?<!\w)(?:" + "|".join(_COMPARATOR_WORDS) + r")(?!\w)"
+
+
+def _prod_comparator_money(tokens: tuple[Token, ...]) -> Token | None:
+    inner = tokens[1]
+    v = inner.value
+    if not isinstance(v, AmountOfMoneyValue) or v.value is None or v.currency is None:
+        return None
+    return Token(dim="amount_of_money", value=v)
+
+
 # ---------------------------------------------------------------------------
 # Rules
 # ---------------------------------------------------------------------------
@@ -340,5 +373,18 @@ RULES: tuple[Rule, ...] = (
             predicate(_is_positive_no_grain, "is_positive_no_grain"),
         ),
         prod=_intersect_at(2),
+    ),
+    # <comparator> <amount-of-money>  e.g. "more than 200 kwd", "around 50 dollars",
+    # "up to 500 kwd", "a 50 kwd". Wraps an existing money token so the body span
+    # widens to include the comparator. Inner predicate requires a concrete
+    # value+currency, so the article `a` only fires on real money phrases —
+    # never on bare prose.
+    Rule(
+        name="<comparator> <amount-of-money>",
+        pattern=(
+            regex(_COMPARATOR_PATTERN),
+            predicate(_is_simple_money, "is_simple_money"),
+        ),
+        prod=_prod_comparator_money,
     ),
 )

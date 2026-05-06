@@ -50,11 +50,25 @@ def _grain_rule(name: str, pattern: str, grain: Grain) -> Rule:
     return Rule(name=name, pattern=(regex(_word_re(pattern)),), prod=prod)
 
 
-def _fixed_duration_rule(name: str, pattern: str, value: int, grain: Grain) -> Rule:
-    """A regex → fixed `Duration` token rule (e.g. "ربع ساعة" → 15 minutes)."""
+def _fixed_duration_rule(
+    name: str, pattern: str, value: int, grain: Grain, *, latent: bool = False
+) -> Rule:
+    """A regex → fixed `Duration` token rule (e.g. "ربع ساعة" → 15 minutes).
+
+    `latent=True` keeps the duration token in the parse forest (so composition
+    rules such as `<prefix> + <duration> → time` can still consume it) while
+    suppressing it from default API output. Use for bare singular unit nouns
+    (سنه/ساعه/شهر/...) — duckling does not surface those as durations in
+    real-world text, only the explicit `<numeral> <unit>` form.
+    """
+
+    if latent:
+        d = DurationValue(value=value, grain=grain, latent=True)
+    else:
+        d = duration(value, grain)
 
     def prod(_: tuple[Token, ...]) -> Token | None:
-        return Token(dim="duration", value=duration(value, grain))
+        return Token(dim="duration", value=d)
 
     return Rule(name=name, pattern=(regex(_word_re(pattern)),), prod=prod)
 
@@ -201,26 +215,30 @@ _integer_and_half_hour = Rule(
 # ---------------------------------------------------------------------------
 # Singular and dual-form shortcuts (regex-only).
 
+# Bare singular unit nouns are emitted as latent durations: duckling does not
+# surface bare سنه/ساعه/شهر/... as durations in production text (they are
+# typically noun classifiers — "year 2025", "during a month"), but the tokens
+# must still exist for composition rules (e.g. `قبل + duration → time`).
 _one_second = _fixed_duration_rule(
-    "one second", r"ثاني[ةه]|لحظ[ةه]", 1, Grain.SECOND
+    "one second", r"ثاني[ةه]|لحظ[ةه]", 1, Grain.SECOND, latent=True
 )
 _one_minute = _fixed_duration_rule(
-    "one minute", r"دقيق[ةه]", 1, Grain.MINUTE
+    "one minute", r"دقيق[ةه]", 1, Grain.MINUTE, latent=True
 )
 _one_hour = _fixed_duration_rule(
-    "one hour", r"ساع[ةه]", 1, Grain.HOUR
+    "one hour", r"ساع[ةه]", 1, Grain.HOUR, latent=True
 )
 _one_day = _fixed_duration_rule(
-    "one day", r"يوم", 1, Grain.DAY
+    "one day", r"يوم", 1, Grain.DAY, latent=True
 )
 _one_week = _fixed_duration_rule(
-    "one week", r"[أا]سبوع", 1, Grain.WEEK
+    "one week", r"[أا]سبوع", 1, Grain.WEEK, latent=True
 )
 _one_month = _fixed_duration_rule(
-    "one month", r"شهر", 1, Grain.MONTH
+    "one month", r"شهر", 1, Grain.MONTH, latent=True
 )
 _one_year = _fixed_duration_rule(
-    "one year", r"سن[ةه]|عام", 1, Grain.YEAR
+    "one year", r"سن[ةه]|عام", 1, Grain.YEAR, latent=True
 )
 
 _two_seconds = _fixed_duration_rule(

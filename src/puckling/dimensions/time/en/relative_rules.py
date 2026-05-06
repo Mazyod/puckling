@@ -69,6 +69,9 @@ _WEEKDAY_TABLE: tuple[tuple[str, int], ...] = (
 )
 
 _WEEKDAY_PATTERN = (
+    # Lookarounds prevent short aliases (mon, tue, wed, ...) from matching
+    # inside longer English words like money / monthly / wednesday-typo.
+    r"(?<!\w)(?:"
     r"mondays?|mon\.?"
     r"|tuesdays?|tues?\.?"
     r"|wed?nesdays?|wed\.?"
@@ -76,6 +79,7 @@ _WEEKDAY_PATTERN = (
     r"|fridays?|fri\.?"
     r"|saturdays?|sat\.?"
     r"|sundays?|sun\.?"
+    r")(?!\w)"
 )
 
 _MONTH_TABLE: tuple[tuple[str, int], ...] = (
@@ -94,9 +98,13 @@ _MONTH_TABLE: tuple[tuple[str, int], ...] = (
 )
 
 _MONTH_PATTERN = (
+    # Lookarounds prevent short aliases (jan, mar, dec, ...) from matching
+    # inside longer English words like marriage / market / declined.
+    r"(?<!\w)(?:"
     r"january|jan\.?|february|feb\.?|march|mar\.?|april|apr\.?|may"
     r"|june|jun\.?|july|jul\.?|august|aug\.?"
     r"|september|sept?\.?|october|oct\.?|november|nov\.?|december|dec\.?"
+    r")(?!\w)"
 )
 
 _ORDINAL_WORDS: dict[str, int] = {

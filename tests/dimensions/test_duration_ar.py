@@ -48,12 +48,28 @@ NEGATIVE_CASES: tuple[str, ...] = (
     "تم تحديث الطلب بنجاح",
     "الكتاب على الطاولة",
     "سأقرأ كتابا في المساء",
+    # Bare singular unit nouns acting as noun classifiers, not durations.
+    # Duckling does not emit duration entities for these in production text;
+    # the bare-singular tokens are kept latent so other rules (prefix +
+    # duration → time) can compose them but the API does not surface them.
+    "كم صرفت في سنه",
+    "خلال سنه",
+    "بسنه",
+    "صرف خلال سنه 2025",
+    "كل شهر نقاط معينه",
+    "في اي شهر اخذت راتب",
+    "تم تحويل الكشوفات قبل ساعه",
+    "حابه وديعه ساعه",
+    "كم دقيقه تستغرق العمليه",
 )
 
 
 @pytest.mark.parametrize("phrase, expected", pytest_examples(CORPUS))
 def test_corpus(phrase, expected, ctx_ar):
-    entities = parse(phrase, ctx_ar, Options(), dims=("duration",))
+    # Bare singular unit nouns (ساعة / شهر / اسبوع / ...) are emitted as
+    # latent durations so they don't pollute production output; opt into
+    # latent here to test the duckling-corpus equivalence.
+    entities = parse(phrase, ctx_ar, Options(with_latent=True), dims=("duration",))
     assert entities, f"no entity for {phrase!r}"
     assert any(value_matches(e.value, expected) for e in entities)
 

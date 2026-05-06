@@ -318,6 +318,24 @@ def named_month(month: int) -> RelTime:
     return RelTime(compute=go, grain=Grain.MONTH, key=("named_month", month))
 
 
+def named_hijri_month(name: str) -> RelTime:
+    """A Hijri-calendar month name as a MONTH-grain entity.
+
+    Hijri months don't map to a fixed Gregorian month. We surface an instant
+    in the current year (placeholder month=1) so the entity composes with
+    `<month> <year>` via `at_year_in()` and with `in/during <month>`. The
+    `key` carries the Hijri name for downstream identification.
+    """
+
+    def go(ref: dt.datetime) -> SingleTimeValue | None:
+        return InstantValue(
+            value=dt.datetime(ref.year, 1, 1, tzinfo=ref.tzinfo),
+            grain=Grain.MONTH,
+        )
+
+    return RelTime(compute=go, grain=Grain.MONTH, key=("hijri_month", name))
+
+
 def month_day(month: int, day: int, *, holiday: str | None = None) -> RelTime:
     """A specific (month, day) — picks the nearest future occurrence."""
 

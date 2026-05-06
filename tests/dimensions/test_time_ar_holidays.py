@@ -34,7 +34,6 @@ def test_holidays_corpus(phrase: str, expected: dict, ctx_ar) -> None:
         "المولد الكهربائي",
         "عاشوراءيات",
         "عيد العمالة",
-        "رمضان كريم",
     ],
 )
 def test_negative_cases(phrase: str, ctx_ar) -> None:
